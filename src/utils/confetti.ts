@@ -1,13 +1,15 @@
 import confetti from 'canvas-confetti';
 
 /**
- * Trigger full-screen high-energy cyber celebration confetti
+ * Trigger lightweight, high-performance cyber celebration confetti
+ * Optimized for mobile GPUs with zero frame drops
  */
 export function fireWinnerConfetti() {
-  const count = 200;
+  const count = 55;
   const defaults = {
-    origin: { y: 0.7 },
-    colors: ['#00F0FF', '#FF007F', '#FACC15', '#A855F7', '#FFFFFF', '#38BDF8'],
+    origin: { y: 0.65 },
+    colors: ['#00F0FF', '#FF007F', '#FACC15', '#A855F7', '#38BDF8'],
+    disableForReducedMotion: true,
   };
 
   function fire(particleRatio: number, opts: confetti.Options) {
@@ -18,45 +20,19 @@ export function fireWinnerConfetti() {
     });
   }
 
-  // Multi-stage celebratory blast sequence
-  fire(0.25, {
-    spread: 26,
-    startVelocity: 55,
-  });
-  fire(0.2, {
-    spread: 60,
-  });
-  fire(0.35, {
-    spread: 100,
-    decay: 0.91,
-    scalar: 0.8,
-  });
-  fire(0.1, {
-    spread: 120,
-    startVelocity: 25,
-    decay: 0.92,
-    scalar: 1.2,
-  });
-  fire(0.1, {
-    spread: 120,
-    startVelocity: 45,
+  // Fast, crisp 2-burst celebration
+  fire(0.6, {
+    spread: 65,
+    startVelocity: 35,
+    decay: 0.93,
+    scalar: 0.9,
   });
 
-  // Secondary side cannons
-  setTimeout(() => {
-    confetti({
-      particleCount: 50,
-      angle: 60,
-      spread: 55,
-      origin: { x: 0, y: 0.85 },
-      colors: ['#00F0FF', '#FF007F', '#38BDF8'],
-    });
-    confetti({
-      particleCount: 50,
-      angle: 120,
-      spread: 55,
-      origin: { x: 1, y: 0.85 },
-      colors: ['#FF007F', '#FACC15', '#A855F7'],
-    });
-  }, 250);
+  fire(0.4, {
+    spread: 100,
+    startVelocity: 40,
+    decay: 0.92,
+    scalar: 1.0,
+  });
 }
+

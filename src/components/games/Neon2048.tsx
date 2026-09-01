@@ -340,7 +340,7 @@ export const Neon2048: React.FC<Neon2048Props> = ({
       <div className="absolute bottom-1/4 -left-16 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Header */}
-      <div className="w-full flex items-center justify-between z-10">
+      <div className="shrink-0 w-full flex items-center justify-between z-10">
         <button
           onClick={() => {
             playClickSound(soundEnabled);
@@ -386,7 +386,7 @@ export const Neon2048: React.FC<Neon2048Props> = ({
       </div>
 
       {/* Compact Score HUD */}
-      <div className="grid grid-cols-2 gap-2 w-full my-0.5 z-10">
+      <div className="shrink-0 grid grid-cols-2 gap-2 w-full my-0.5 z-10">
         <div className="p-1.5 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col items-center">
           <span className="text-[8px] uppercase tracking-wider text-slate-400 font-bold">SCORE</span>
           <span className="text-lg font-black font-orbitron text-cyan-400 leading-tight">
@@ -433,21 +433,18 @@ export const Neon2048: React.FC<Neon2048Props> = ({
 
         {board.map((row, r) =>
           row.map((val, c) => (
-            <motion.div
-              key={`${r}-${c}-${val}`}
-              initial={{ scale: val > 0 ? 0.8 : 1 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.15 }}
-              className={`w-full h-full rounded-xl border flex items-center justify-center font-orbitron font-black text-base transition-all ${getTileStyle(
+            <div
+              key={`${r}-${c}`}
+              className={`w-full h-full rounded-xl border flex items-center justify-center font-orbitron font-black text-base transition-all duration-100 will-change-transform ${getTileStyle(
                 val
-              )}`}
+              )} ${val > 0 ? 'scale-100' : 'scale-95 opacity-50'}`}
             >
               {val > 0 ? (
                 <span className={val >= 1024 ? 'text-xs' : val >= 128 ? 'text-sm' : 'text-base font-black'}>
                   {val}
                 </span>
               ) : null}
-            </motion.div>
+            </div>
           ))
         )}
 

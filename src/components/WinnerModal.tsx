@@ -77,13 +77,13 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+      <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85">
         <motion.div
-          initial={{ scale: 0.85, opacity: 0, y: 20 }}
+          initial={{ scale: 0.9, opacity: 0, y: 15 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-          className={`w-full max-w-sm rounded-3xl p-6 bg-slate-900/95 border flex flex-col items-center text-center shadow-2xl relative overflow-hidden ${
+          exit={{ scale: 0.95, opacity: 0 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+          className={`w-full max-w-sm rounded-3xl p-6 bg-slate-900/98 border flex flex-col items-center text-center shadow-2xl relative overflow-hidden will-change-transform ${
             isDraw
               ? 'border-amber-500/40 shadow-amber-900/30'
               : winner === 'X'
@@ -93,17 +93,14 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
         >
           {/* Top Ambient Glow */}
           <div
-            className={`absolute -top-16 inset-x-0 h-32 blur-3xl opacity-30 pointer-events-none ${
+            className={`absolute -top-16 inset-x-0 h-28 blur-2xl opacity-25 pointer-events-none ${
               isDraw ? 'bg-amber-400' : winner === 'X' ? 'bg-cyan-400' : 'bg-pink-500'
             }`}
           />
 
           {/* Trophy / Result Icon Badge */}
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1, rotate: [0, -10, 10, 0] }}
-            transition={{ type: 'spring', stiffness: 400, damping: 18, delay: 0.1 }}
-            className={`w-20 h-20 rounded-2xl flex items-center justify-center mb-4 shadow-lg border ${
+          <div
+            className={`w-18 h-18 rounded-2xl flex items-center justify-center mb-4 shadow-lg border transform transition-transform ${
               isDraw
                 ? 'bg-amber-500/20 border-amber-400/50 text-amber-400'
                 : winner === 'X'
@@ -112,11 +109,11 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
             }`}
           >
             {isDraw ? (
-              <Scale className="w-10 h-10" />
+              <Scale className="w-9 h-9" />
             ) : (
-              <Trophy className="w-10 h-10 drop-shadow-md" />
+              <Trophy className="w-9 h-9 drop-shadow-md" />
             )}
-          </motion.div>
+          </div>
 
           {/* Winner Token Indicator if not draw */}
           {!isDraw && (

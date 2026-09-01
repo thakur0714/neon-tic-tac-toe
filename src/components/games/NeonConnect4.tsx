@@ -8,6 +8,8 @@ import {
   Bot,
   Users,
   Sparkles,
+  Radio,
+  Wifi,
 } from 'lucide-react';
 import { Connect4Cell, Connect4Player, Connect4Stats } from '../../types';
 import {
@@ -17,6 +19,7 @@ import {
   triggerHaptic,
 } from '../../utils/audio';
 import { fireWinnerConfetti } from '../../utils/confetti';
+import { peerManager } from '../../utils/peerManager';
 
 interface NeonConnect4Props {
   onBackToHub: () => void;
@@ -43,11 +46,62 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
   const [winner, setWinner] = useState<Connect4Player | 'draw' | null>(null);
   const [winningCells, setWinningCells] = useState<[number, number][]>([]);
 
+  // Online Multiplayer State
+  const [isOnline, setIsOnline] = useState(false);
+  const [onlineRole, setOnlineRole] = useState<'host' | 'client' | null>(null);
+  const [latency, setLatency] = useState(0);
+
   function createEmptyBoard(): Connect4Cell[][] {
     return Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(null));
   }
+
+  // Subscribe to peerManager messages
+  useEffect(() => {
+    const isConn = peerManager.isConnected();
+    setIsOnline(isConn);
+    setOnlineRole(peerManager.getRole());
+
+    const unsubMsg = peerManager.onMessage((msg) => {
+      if (msg.type === 'MOVE_CONNECT4' && msg.index !== undefined && msg.player) {
+        // Remote chip drop
+        const col = msg.index;
+        const player = msg.player as Connect4Player;
+
+        setBoard((prev) => {
+          const row = getLowestEmptyRow(col, prev);
+          if (row === -1) return prev;
+
+          playDropSound(soundEnabled);
+          triggerHaptic('light');
+
+          const newBoard = prev.map((r) => [...r]);
+          newBoard[row][col] = player;
+
+          const res = checkVictory(newBoard);
+          if (res.winner !== null) {
+            setWinningCells(res.cells);
+            handleGameEnd(res.winner);
+          } else {
+            setCurrentPlayer(player === 'P1' ? 'P2' : 'P1');
+          }
+          return newBoard;
+        });
+      } else if (msg.type === 'REMATCH_REQ' || msg.type === 'REMATCH_ACCEPT') {
+        resetGame();
+      }
+    });
+
+    const unsubLat = peerManager.onLatency((ms) => {
+      setLatency(ms);
+    });
+
+    return () => {
+      unsubMsg();
+      unsubLat();
+    };
+  }, [soundEnabled]);
 
   const resetGame = () => {
     playClickSound(soundEnabled);
@@ -57,6 +111,10 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
     setWinner(null);
     setWinningCells([]);
     setIsAiThinking(false);
+
+    if (peerManager.isConnected()) {
+      peerManager.sendMessage({ type: 'REMATCH_ACCEPT' });
+    }
   };
 
   const getLowestEmptyRow = (col: number, currentBoard: Connect4Cell[][]): number => {
@@ -192,6 +250,20 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
     (col: number) => {
       if (winner !== null || isAiThinking) return;
 
+      // In Online P2P Mode: verify it's our turn
+      if (isOnline) {
+        const myPlayer: Connect4Player = onlineRole === 'client' ? 'P2' : 'P1';
+        if (currentPlayer !== myPlayer) {
+          return; // Not your turn
+        }
+
+        peerManager.sendMessage({
+          type: 'MOVE_CONNECT4',
+          index: col,
+          player: myPlayer,
+        });
+      }
+
       const row = getLowestEmptyRow(col, board);
       if (row === -1) return; // Column is full
 
@@ -213,7 +285,7 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
       setCurrentPlayer(nextP);
 
       // AI Move turn
-      if (isAiMode && nextP === 'P2') {
+      if (!isOnline && isAiMode && nextP === 'P2') {
         setIsAiThinking(true);
         setTimeout(() => {
           let chosenCol = -1;
@@ -276,7 +348,7 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
         }, 450);
       }
     },
-    [board, currentPlayer, isAiMode, isAiThinking, winner, soundEnabled, handleGameEnd]
+    [board, currentPlayer, isAiMode, isAiThinking, winner, soundEnabled, handleGameEnd, isOnline, onlineRole]
   );
 
   return (
@@ -286,7 +358,7 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
       <div className="absolute bottom-1/4 -right-16 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Navigation */}
-      <div className="w-full flex items-center justify-between z-10">
+      <div className="shrink-0 w-full flex items-center justify-between z-10">
         <button
           onClick={() => {
             playClickSound(soundEnabled);
@@ -299,17 +371,25 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
         </button>
 
         <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => {
-              playClickSound(soundEnabled);
-              setIsAiMode(!isAiMode);
-              resetGame();
-            }}
-            className="flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-orbitron text-slate-300 font-bold cursor-pointer"
-          >
-            {isAiMode ? <Bot className="w-3 h-3 text-pink-400" /> : <Users className="w-3 h-3 text-cyan-400" />}
-            <span>{isAiMode ? 'VS BOT' : '2 PLAYER'}</span>
-          </button>
+          {isOnline ? (
+            <div className="flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-900 border border-emerald-500/40 text-[10px] font-orbitron text-emerald-400 font-bold">
+              <Radio className="w-3 h-3 animate-pulse" />
+              <span>ONLINE ({onlineRole === 'host' ? 'YOU: CYAN' : 'YOU: PINK'})</span>
+              {latency > 0 && <span className="text-[9px] text-slate-400 font-mono">· {latency}ms</span>}
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                playClickSound(soundEnabled);
+                setIsAiMode(!isAiMode);
+                resetGame();
+              }}
+              className="flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-orbitron text-slate-300 font-bold cursor-pointer"
+            >
+              {isAiMode ? <Bot className="w-3 h-3 text-pink-400" /> : <Users className="w-3 h-3 text-cyan-400" />}
+              <span>{isAiMode ? 'VS BOT' : '2 PLAYER'}</span>
+            </button>
+          )}
 
           <button
             onClick={() => {
@@ -325,7 +405,7 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
       </div>
 
       {/* Top HUD Scoreboard */}
-      <div className="grid grid-cols-3 gap-1.5 w-full my-0.5 z-10">
+      <div className="shrink-0 grid grid-cols-3 gap-1.5 w-full my-0.5 z-10">
         <div
           className={`p-1.5 rounded-xl border flex flex-col items-center transition-all ${
             currentPlayer === 'P1' && !winner

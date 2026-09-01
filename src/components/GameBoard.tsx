@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Board, CellValue, Player, WinResult } from '../types';
+import { Board, Player, WinResult } from '../types';
 
 interface GameBoardProps {
   board: Board;
@@ -58,8 +58,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
   return (
     <div className="w-full flex-1 flex items-center justify-center p-1.5 sm:p-4">
-      {/* 3x3 Arena Wrapper */}
-      <div className="relative w-full max-w-[min(340px,46vh)] aspect-square rounded-3xl p-2.5 bg-slate-900/60 border border-slate-800/90 shadow-[0_10px_35px_-5px_rgba(0,0,0,0.7)] backdrop-blur-xl cyber-grid-cyan shrink-0">
+      {/* 3x3 Arena Wrapper - Lightweight GPU-friendly styling */}
+      <div className="relative w-full max-w-[min(340px,46vh)] aspect-square rounded-3xl p-2.5 bg-slate-900/90 border border-slate-800/90 shadow-[0_10px_35px_-5px_rgba(0,0,0,0.7)] cyber-grid-cyan shrink-0">
         {/* Subtle grid accent glow borders */}
         <div className="absolute inset-0 rounded-3xl pointer-events-none border border-cyan-500/20" />
 
@@ -72,18 +72,18 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             return (
               <motion.button
                 key={index}
-                whileTap={{ scale: disabled || cellValue ? 1 : 0.92 }}
+                whileTap={{ scale: disabled || cellValue ? 1 : 0.94 }}
                 onClick={() => onCellClick(index)}
                 disabled={disabled || cellValue !== null || isAiThinking}
-                className={`group relative rounded-2xl flex items-center justify-center transition-all duration-300 select-none overflow-hidden cursor-pointer ${
+                className={`group relative rounded-2xl flex items-center justify-center transition-all duration-200 select-none overflow-hidden cursor-pointer transform-gpu will-change-transform ${
                   cellValue === null
                     ? 'bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 hover:bg-slate-900/80'
                     : 'bg-slate-950/90 border border-slate-800/90'
                 } ${
                   isWinningCell
                     ? winResult.winner === 'X'
-                      ? 'bg-cyan-950/40 border-cyan-400/90 shadow-[0_0_20px_rgba(0,240,255,0.4)]'
-                      : 'bg-pink-950/40 border-pink-500/90 shadow-[0_0_20px_rgba(255,0,127,0.4)]'
+                      ? 'bg-cyan-950/40 border-cyan-400/90 shadow-[0_0_16px_rgba(0,240,255,0.4)]'
+                      : 'bg-pink-950/40 border-pink-500/90 shadow-[0_0_16px_rgba(255,0,127,0.4)]'
                     : ''
                 } ${isDimmed ? 'opacity-30' : 'opacity-100'}`}
               >
@@ -106,30 +106,18 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           })}
         </div>
 
-        {/* SVG Laser Strike-Through Line Overlay */}
+        {/* Lightweight Laser Strike-Through Line Overlay (No heavy SVG filters) */}
         {lineCoords && (
           <svg
             className="absolute inset-0 w-full h-full pointer-events-none z-20 rounded-3xl"
             viewBox="0 0 100 100"
             preserveAspectRatio="none"
           >
-            <defs>
-              <filter id="neon-glow-filter" x="-30%" y="-30%" width="160%" height="160%">
-                <feGaussianBlur stdDeviation="1.5" result="blur1" />
-                <feGaussianBlur stdDeviation="3.5" result="blur2" />
-                <feMerge>
-                  <feMergeNode in="blur2" />
-                  <feMergeNode in="blur1" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
-
-            {/* Glowing wide halo */}
+            {/* Glowing neon halo */}
             <motion.line
               initial={{ pathLength: 0, opacity: 0 }}
-              animate={{ pathLength: 1, opacity: 0.6 }}
-              transition={{ duration: 0.45, ease: 'easeOut' }}
+              animate={{ pathLength: 1, opacity: 0.8 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
               x1={`${lineCoords.x1}%`}
               y1={`${lineCoords.y1}%`}
               x2={`${lineCoords.x2}%`}
@@ -137,14 +125,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               stroke={winResult.winner === 'X' ? '#00F0FF' : '#FF007F'}
               strokeWidth="6"
               strokeLinecap="round"
-              filter="url(#neon-glow-filter)"
+              className="drop-shadow-[0_0_8px_currentColor]"
             />
 
             {/* Sharp bright laser core */}
             <motion.line
               initial={{ pathLength: 0 }}
               animate={{ pathLength: 1 }}
-              transition={{ duration: 0.4, ease: 'easeOut' }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
               x1={`${lineCoords.x1}%`}
               y1={`${lineCoords.y1}%`}
               x2={`${lineCoords.x2}%`}
@@ -160,51 +148,41 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   );
 };
 
-// Neon X Component
+// Optimized Neon X Component (Hardware-accelerated, lightweight animations)
 function NeonX({ isWinning }: { isWinning?: boolean }) {
   return (
     <motion.div
-      initial={{ scale: 0, rotate: -25 }}
-      animate={{ scale: isWinning ? [1, 1.15, 1] : 1, rotate: 0 }}
+      initial={{ scale: 0.2, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
       transition={{
-        type: 'spring',
-        stiffness: 400,
-        damping: 22,
-        repeat: isWinning ? Infinity : 0,
-        repeatDelay: 1,
+        duration: 0.18,
+        ease: 'easeOut',
       }}
-      className="w-14 h-14 flex items-center justify-center"
+      className={`w-14 h-14 flex items-center justify-center transform-gpu will-change-transform ${
+        isWinning ? 'animate-pulse' : ''
+      }`}
     >
       <svg
         viewBox="0 0 60 60"
-        className="w-12 h-12 overflow-visible"
-        style={{
-          filter: 'drop-shadow(0 0 6px rgba(0, 240, 255, 0.8)) drop-shadow(0 0 16px rgba(0, 240, 255, 0.4))',
-        }}
+        className="w-12 h-12 overflow-visible drop-shadow-[0_0_8px_rgba(0,240,255,0.8)]"
       >
-        <motion.line
+        <line
           x1="12"
           y1="12"
           x2="48"
           y2="48"
           stroke="#00F0FF"
-          strokeWidth="7"
+          strokeWidth="6"
           strokeLinecap="round"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 0.22, ease: 'easeOut' }}
         />
-        <motion.line
+        <line
           x1="48"
           y1="12"
           x2="12"
           y2="48"
           stroke="#00F0FF"
-          strokeWidth="7"
+          strokeWidth="6"
           strokeLinecap="round"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 0.22, delay: 0.06, ease: 'easeOut' }}
         />
         {/* White neon hot core */}
         <line x1="12" y1="12" x2="48" y2="48" stroke="#E0F7FA" strokeWidth="2.2" strokeLinecap="round" />
@@ -214,39 +192,32 @@ function NeonX({ isWinning }: { isWinning?: boolean }) {
   );
 }
 
-// Neon O Component
+// Optimized Neon O Component (Hardware-accelerated, lightweight animations)
 function NeonO({ isWinning }: { isWinning?: boolean }) {
   return (
     <motion.div
-      initial={{ scale: 0 }}
-      animate={{ scale: isWinning ? [1, 1.15, 1] : 1 }}
+      initial={{ scale: 0.2, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
       transition={{
-        type: 'spring',
-        stiffness: 400,
-        damping: 22,
-        repeat: isWinning ? Infinity : 0,
-        repeatDelay: 1,
+        duration: 0.18,
+        ease: 'easeOut',
       }}
-      className="w-14 h-14 flex items-center justify-center"
+      className={`w-14 h-14 flex items-center justify-center transform-gpu will-change-transform ${
+        isWinning ? 'animate-pulse' : ''
+      }`}
     >
       <svg
         viewBox="0 0 60 60"
-        className="w-12 h-12 overflow-visible"
-        style={{
-          filter: 'drop-shadow(0 0 6px rgba(255, 0, 127, 0.85)) drop-shadow(0 0 16px rgba(255, 0, 127, 0.4))',
-        }}
+        className="w-12 h-12 overflow-visible drop-shadow-[0_0_8px_rgba(255,0,127,0.85)]"
       >
-        <motion.circle
+        <circle
           cx="30"
           cy="30"
           r="19"
           fill="none"
           stroke="#FF007F"
-          strokeWidth="7"
+          strokeWidth="6"
           strokeLinecap="round"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 0.28, ease: 'easeOut' }}
         />
         {/* White neon hot core */}
         <circle cx="30" cy="30" r="19" fill="none" stroke="#FCE7F3" strokeWidth="2.2" />
@@ -254,3 +225,4 @@ function NeonO({ isWinning }: { isWinning?: boolean }) {
     </motion.div>
   );
 }
+

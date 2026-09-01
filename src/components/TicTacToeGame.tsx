@@ -17,7 +17,8 @@ import {
   triggerHaptic,
 } from '../utils/audio';
 import { fireWinnerConfetti } from '../utils/confetti';
-import { Grid, ArrowLeft } from 'lucide-react';
+import { peerManager } from '../utils/peerManager';
+import { Grid, ArrowLeft, Radio, Wifi, Smile } from 'lucide-react';
 
 interface TicTacToeGameProps {
   onBackToHub: () => void;
@@ -43,11 +44,65 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
   const [winResult, setWinResult] = useState<WinResult>({ winner: null, line: null });
   const [isWinnerModalOpen, setIsWinnerModalOpen] = useState(false);
 
+  // Online Multiplayer State
+  const [isOnlineMultiplayer, setIsOnlineMultiplayer] = useState(false);
+  const [onlineRole, setOnlineRole] = useState<'host' | 'client' | null>(null);
+  const [latency, setLatency] = useState(0);
+  const [incomingEmote, setIncomingEmote] = useState<string | null>(null);
+
   // Secondary modals
   const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
 
   const aiTimeoutRef = useRef<number | null>(null);
+
+  // Check peerManager on mount or state changes
+  useEffect(() => {
+    const isConn = peerManager.isConnected();
+    setIsOnlineMultiplayer(isConn);
+    setOnlineRole(peerManager.getRole());
+
+    if (isConn) {
+      setScreen('game');
+    }
+
+    const unsubMsg = peerManager.onMessage((msg) => {
+      if (msg.type === 'MOVE_TICTACTOE' && msg.index !== undefined && msg.player) {
+        // Opponent made a move
+        setBoard((prev) => {
+          if (prev[msg.index!] !== null) return prev;
+          const next = [...prev];
+          next[msg.index!] = msg.player as Player;
+
+          const res = checkWinner(next);
+          if (res.winner !== null) {
+            handleGameOver(res);
+          } else {
+            setCurrentPlayer(msg.player === 'X' ? 'O' : 'X');
+          }
+          return next;
+        });
+
+        playMoveSound(msg.player as Player, config.soundEnabled);
+        triggerHaptic('light', config.hapticsEnabled);
+      } else if (msg.type === 'REMATCH_REQ' || msg.type === 'REMATCH_ACCEPT') {
+        resetGameRound();
+      } else if (msg.type === 'EMOTE' && msg.emote) {
+        setIncomingEmote(msg.emote);
+        triggerHaptic('light', config.hapticsEnabled);
+        setTimeout(() => setIncomingEmote(null), 2500);
+      }
+    });
+
+    const unsubLat = peerManager.onLatency((ms) => {
+      setLatency(ms);
+    });
+
+    return () => {
+      unsubMsg();
+      unsubLat();
+    };
+  }, [config.soundEnabled, config.hapticsEnabled]);
 
   // Cleanup pending AI moves on unmount or reset
   useEffect(() => {
@@ -71,13 +126,17 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
       const initialPlayer = activeConfig.startingPlayer;
 
       setBoard(Array(9).fill(null));
-      setCurrentPlayer(initialPlayer);
+      setCurrentPlayer('X');
       setWinResult({ winner: null, line: null });
       setIsWinnerModalOpen(false);
       setIsAiThinking(false);
 
+      if (peerManager.isConnected()) {
+        peerManager.sendMessage({ type: 'REMATCH_ACCEPT' });
+      }
+
       // If AI moves first
-      if (activeConfig.mode.startsWith('ai') && initialPlayer === activeConfig.aiSymbol) {
+      if (!peerManager.isConnected() && activeConfig.mode.startsWith('ai') && initialPlayer === activeConfig.aiSymbol) {
         setIsAiThinking(true);
         aiTimeoutRef.current = window.setTimeout(() => {
           let move = 4; // center
@@ -161,15 +220,31 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
     [config, onUpdateStats]
   );
 
-  // Handle Human Move
+  // Handle Move (Local & Online P2P)
   const handleCellClick = (index: number) => {
     if (board[index] !== null || winResult.winner !== null || isAiThinking) {
       return;
     }
 
-    // In AI mode, prevent human from playing if it's currently AI's turn
-    if (config.mode.startsWith('ai') && currentPlayer !== config.playerSymbol) {
-      return;
+    // In Online P2P Mode: verify it's our assigned turn
+    if (isOnlineMultiplayer) {
+      const myToken: Player = onlineRole === 'client' ? 'O' : 'X';
+      if (currentPlayer !== myToken) {
+        // Not your turn!
+        return;
+      }
+
+      // Send move to peer
+      peerManager.sendMessage({
+        type: 'MOVE_TICTACTOE',
+        index,
+        player: myToken,
+      });
+    } else {
+      // In AI mode, prevent human from playing if it's currently AI's turn
+      if (config.mode.startsWith('ai') && currentPlayer !== config.playerSymbol) {
+        return;
+      }
     }
 
     playMoveSound(currentPlayer, config.soundEnabled);
@@ -189,8 +264,8 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
     const nextPlayer: Player = currentPlayer === 'X' ? 'O' : 'X';
     setCurrentPlayer(nextPlayer);
 
-    // AI Turn Trigger
-    if (config.mode.startsWith('ai') && nextPlayer === config.aiSymbol) {
+    // AI Turn Trigger (Only in single-player AI mode)
+    if (!isOnlineMultiplayer && config.mode.startsWith('ai') && nextPlayer === config.aiSymbol) {
       setIsAiThinking(true);
 
       aiTimeoutRef.current = window.setTimeout(() => {
@@ -227,6 +302,14 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
     }
   };
 
+  const handleSendEmote = (emote: string) => {
+    playClickSound(config.soundEnabled);
+    triggerHaptic('light', config.hapticsEnabled);
+    peerManager.sendMessage({ type: 'EMOTE', emote });
+    setIncomingEmote(`You: ${emote}`);
+    setTimeout(() => setIncomingEmote(null), 2000);
+  };
+
   const handleResetStats = () => {
     onUpdateStats({
       winsX: 0,
@@ -255,8 +338,18 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
         </button>
 
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/90 border border-cyan-500/30 text-[10px] font-orbitron text-cyan-300 font-bold">
-          <Grid className="w-3 h-3 text-cyan-400" />
-          <span>TIC-TAC-TOE</span>
+          {isOnlineMultiplayer ? (
+            <span className="flex items-center gap-1 text-emerald-400">
+              <Radio className="w-3 h-3 animate-pulse" />
+              <span>ONLINE ({onlineRole === 'host' ? 'YOU: X' : 'YOU: O'})</span>
+              {latency > 0 && <span className="text-[9px] text-slate-400 font-mono">· {latency}ms</span>}
+            </span>
+          ) : (
+            <>
+              <Grid className="w-3 h-3 text-cyan-400" />
+              <span>TIC-TAC-TOE</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -316,6 +409,29 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
             disabled={winResult.winner !== null}
             onCellClick={handleCellClick}
           />
+
+          {/* Online Emotes & Opponent Toast */}
+          {isOnlineMultiplayer && (
+            <div className="w-full px-4 py-1.5 flex flex-col items-center gap-1.5 z-20">
+              {incomingEmote && (
+                <div className="px-3 py-1 rounded-full bg-slate-900/90 border border-cyan-400 text-xs font-orbitron text-cyan-300 animate-bounce shadow-lg">
+                  {incomingEmote}
+                </div>
+              )}
+              <div className="flex items-center gap-2 bg-slate-950/80 px-3 py-1 rounded-full border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-orbitron uppercase">React:</span>
+                {['🔥', '👏', '⚡', '🤯', '😎', '💀'].map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => handleSendEmote(emoji)}
+                    className="hover:scale-125 transition-transform text-sm cursor-pointer"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Celebration Winner Modal */}
           <WinnerModal

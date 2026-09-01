@@ -1,7 +1,6 @@
 /**
- * Dynamic Sound FX Synthesizer using Web Audio API
- * Generates crisp, zero-latency arcade and cyber neon sound effects
- * without external audio asset downloads.
+ * High-performance Sound FX Synthesizer using Web Audio API
+ * Generates instant, zero-latency arcade sounds with zero frame drops on mobile.
  */
 
 let audioCtx: AudioContext | null = null;
@@ -9,7 +8,9 @@ let audioCtx: AudioContext | null = null;
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
   if (!audioCtx) {
-    const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const AudioCtxClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (AudioCtxClass) {
       audioCtx = new AudioCtxClass();
     }
@@ -20,21 +21,24 @@ function getAudioContext(): AudioContext | null {
   return audioCtx;
 }
 
-export function triggerHaptic(type: 'light' | 'medium' | 'heavy' | 'success' = 'light', enabled = true) {
+export function triggerHaptic(
+  type: 'light' | 'medium' | 'heavy' | 'success' = 'light',
+  enabled = true
+) {
   if (!enabled || typeof navigator === 'undefined' || !navigator.vibrate) return;
   try {
     switch (type) {
       case 'light':
-        navigator.vibrate(12);
+        navigator.vibrate(10);
         break;
       case 'medium':
-        navigator.vibrate(25);
+        navigator.vibrate(20);
         break;
       case 'heavy':
-        navigator.vibrate([40, 30, 40]);
+        navigator.vibrate(35);
         break;
       case 'success':
-        navigator.vibrate([30, 40, 60, 40, 80]);
+        navigator.vibrate([25, 30, 40]);
         break;
     }
   } catch {
@@ -56,30 +60,28 @@ export function playMoveSound(player: 'X' | 'O', enabled = true) {
     const gain = ctx.createGain();
 
     if (player === 'X') {
-      // Electric Cyan: bright snappy laser blip
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(520, now);
-      osc.frequency.exponentialRampToValueAtTime(980, now + 0.08);
+      osc.frequency.exponentialRampToValueAtTime(980, now + 0.06);
 
-      gain.gain.setValueAtTime(0.22, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
     } else {
-      // Neon Pink: resonant bell chime
       osc.type = 'sine';
       osc.frequency.setValueAtTime(420, now);
-      osc.frequency.exponentialRampToValueAtTime(740, now + 0.09);
+      osc.frequency.exponentialRampToValueAtTime(740, now + 0.07);
 
-      gain.gain.setValueAtTime(0.25, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
     }
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.16);
+    osc.stop(now + 0.12);
   } catch {
-    // Audio safe fallback
+    // Safe
   }
 }
 
@@ -93,45 +95,27 @@ export function playWinSound(enabled = true) {
 
   try {
     const now = ctx.currentTime;
-    // Ascending celebratory notes: C5, E5, G5, C6 arpeggio
     const notes = [523.25, 659.25, 783.99, 1046.5];
     notes.forEach((freq, index) => {
-      const startTime = now + index * 0.1;
+      const startTime = now + index * 0.08;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(freq, startTime);
-      osc.frequency.exponentialRampToValueAtTime(freq * 1.02, startTime + 0.2);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.02, startTime + 0.15);
 
-      gain.gain.setValueAtTime(0.2, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.35);
+      gain.gain.setValueAtTime(0.16, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
 
       osc.start(startTime);
-      osc.stop(startTime + 0.4);
-    });
-
-    // Add extra sparkle chord at the end
-    const chordTime = now + 0.42;
-    [1046.5, 1318.51, 1567.98].forEach((freq) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, chordTime);
-      gain.gain.setValueAtTime(0.12, chordTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, chordTime + 0.6);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start(chordTime);
-      osc.stop(chordTime + 0.65);
+      osc.stop(startTime + 0.28);
     });
   } catch {
-    // Audio safe fallback
+    // Safe
   }
 }
 
@@ -145,26 +129,26 @@ export function playDrawSound(enabled = true) {
 
   try {
     const now = ctx.currentTime;
-    const notes = [440, 392, 349.23, 311.13]; // Descending melancholy
+    const notes = [440, 392, 349.23];
     notes.forEach((freq, idx) => {
-      const startTime = now + idx * 0.12;
+      const startTime = now + idx * 0.09;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(freq, startTime);
 
-      gain.gain.setValueAtTime(0.08, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
+      gain.gain.setValueAtTime(0.06, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.18);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
 
       osc.start(startTime);
-      osc.stop(startTime + 0.28);
+      osc.stop(startTime + 0.2);
     });
   } catch {
-    // Audio safe fallback
+    // Safe
   }
 }
 
@@ -183,18 +167,18 @@ export function playClickSound(enabled = true) {
 
     osc.type = 'sine';
     osc.frequency.setValueAtTime(800, now);
-    osc.frequency.exponentialRampToValueAtTime(1400, now + 0.04);
+    osc.frequency.exponentialRampToValueAtTime(1400, now + 0.03);
 
-    gain.gain.setValueAtTime(0.12, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.06);
+    osc.stop(now + 0.05);
   } catch {
-    // Audio safe fallback
+    // Safe
   }
 }
 
@@ -213,16 +197,16 @@ export function playResetSound(enabled = true) {
 
     osc.type = 'sine';
     osc.frequency.setValueAtTime(220, now);
-    osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+    osc.frequency.exponentialRampToValueAtTime(880, now + 0.12);
 
-    gain.gain.setValueAtTime(0.18, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    gain.gain.setValueAtTime(0.14, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.22);
+    osc.stop(now + 0.16);
   } catch {
     // Safe
   }
@@ -246,16 +230,16 @@ export function playEatSound(isSpecial = false, enabled = true) {
     const endFreq = isSpecial ? 1200 : 880;
 
     osc.frequency.setValueAtTime(startFreq, now);
-    osc.frequency.exponentialRampToValueAtTime(endFreq, now + 0.09);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, now + 0.07);
 
-    gain.gain.setValueAtTime(0.2, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.14);
+    osc.stop(now + 0.1);
   } catch {
     // Safe
   }
@@ -275,17 +259,17 @@ export function playCrashSound(enabled = true) {
     const gain = ctx.createGain();
 
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(240, now);
-    osc.frequency.exponentialRampToValueAtTime(60, now + 0.2);
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(50, now + 0.16);
 
-    gain.gain.setValueAtTime(0.28, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.26);
+    osc.stop(now + 0.2);
   } catch {
     // Safe
   }
@@ -306,16 +290,16 @@ export function playDropSound(enabled = true) {
 
     osc.type = 'sine';
     osc.frequency.setValueAtTime(580, now);
-    osc.frequency.exponentialRampToValueAtTime(260, now + 0.08);
+    osc.frequency.exponentialRampToValueAtTime(260, now + 0.06);
 
-    gain.gain.setValueAtTime(0.25, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.12);
+    osc.stop(now + 0.09);
   } catch {
     // Safe
   }
@@ -334,20 +318,19 @@ export function playMergeSound(value = 4, enabled = true) {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
-    // Pitch scales with merged value
-    const baseFreq = 300 + Math.min(Math.log2(value) * 80, 1000);
+    const baseFreq = 300 + Math.min(Math.log2(value) * 60, 800);
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(baseFreq, now);
-    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, now + 0.08);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.4, now + 0.06);
 
-    gain.gain.setValueAtTime(0.2, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    gain.gain.setValueAtTime(0.16, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.15);
+    osc.stop(now + 0.11);
   } catch {
     // Safe
   }
@@ -372,7 +355,7 @@ export function playDPadSound(direction: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', enabl
     switch (direction) {
       case 'UP':
         startFreq = 650;
-        endFreq = 950;
+        endFreq = 900;
         break;
       case 'DOWN':
         startFreq = 550;
@@ -390,7 +373,37 @@ export function playDPadSound(direction: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', enabl
 
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(startFreq, now);
-    osc.frequency.exponentialRampToValueAtTime(endFreq, now + 0.04);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, now + 0.03);
+
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.05);
+  } catch {
+    // Safe
+  }
+}
+
+/**
+ * Bubble pop / UI confirm sound
+ */
+export function playPopSound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.04);
 
     gain.gain.setValueAtTime(0.2, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
@@ -404,4 +417,5 @@ export function playDPadSound(direction: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', enabl
     // Safe
   }
 }
+
 

@@ -98,3 +98,55 @@ export interface Game2048Stats {
   totalGames: number;
 }
 
+/* =========================================================================
+   Online P2P Multiplayer Types
+   ========================================================================= */
+
+export type MultiplayerRole = 'host' | 'client' | null;
+
+export type MultiplayerStatus =
+  | 'idle'
+  | 'creating'
+  | 'waiting'
+  | 'connecting'
+  | 'connected'
+  | 'disconnected'
+  | 'error';
+
+export type MultiplayerGameType = 'tictactoe' | 'connect4' | 'snake';
+
+export interface MultiplayerMessage {
+  type:
+    | 'HANDSHAKE'
+    | 'GAME_START'
+    | 'MOVE_TICTACTOE'
+    | 'MOVE_CONNECT4'
+    | 'SNAKE_UPDATE'
+    | 'SNAKE_GAMEOVER'
+    | 'REMATCH_REQ'
+    | 'REMATCH_ACCEPT'
+    | 'EMOTE'
+    | 'PING'
+    | 'PONG';
+  gameType?: MultiplayerGameType;
+  index?: number; // for TicTacToe cell or Connect4 column
+  player?: Player | Connect4Player;
+  board?: any;
+  score?: number;
+  length?: number;
+  alive?: boolean;
+  emote?: string;
+  senderName?: string;
+  timestamp?: number;
+}
+
+export interface MultiplayerSession {
+  roomCode: string;
+  role: MultiplayerRole;
+  status: MultiplayerStatus;
+  gameType: MultiplayerGameType;
+  opponentName: string;
+  latencyMs: number;
+  isOpponentReady: boolean;
+}
+

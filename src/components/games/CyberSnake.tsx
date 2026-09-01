@@ -331,7 +331,7 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
       <div className="absolute bottom-1/4 -right-16 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Header */}
-      <div className="w-full flex items-center justify-between z-10">
+      <div className="shrink-0 w-full flex items-center justify-between z-10">
         <button
           onClick={() => {
             playClickSound(soundEnabled);
@@ -377,7 +377,7 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
       </div>
 
       {/* Compact HUD Scoreboard */}
-      <div className="grid grid-cols-3 gap-1.5 w-full my-0.5 z-10">
+      <div className="shrink-0 grid grid-cols-3 gap-1.5 w-full my-0.5 z-10">
         <div className="p-1.5 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col items-center">
           <span className="text-[8px] uppercase tracking-wider text-slate-400 font-bold">SCORE</span>
           <span className="text-lg font-black font-orbitron text-emerald-400 leading-tight">
@@ -436,13 +436,13 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
           />
         )}
 
-        {/* Snake Body Rendering */}
+        {/* Snake Body Rendering (Optimized with standard GPU-accelerated div for 60fps mobile execution) */}
         {snake.map((segment, idx) => {
           const isHead = idx === 0;
           return (
-            <motion.div
+            <div
               key={`${segment.x}-${segment.y}-${idx}`}
-              className={`absolute rounded-sm transition-all duration-75 ${
+              className={`absolute transition-all duration-75 will-change-transform ${
                 isHead
                   ? 'bg-emerald-400 shadow-[0_0_12px_#10B981] z-20 border border-white'
                   : 'bg-emerald-500/80 border border-emerald-400/40 z-10'
@@ -452,7 +452,7 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
                 height: `${100 / GRID_SIZE}%`,
                 left: `${(segment.x * 100) / GRID_SIZE}%`,
                 top: `${(segment.y * 100) / GRID_SIZE}%`,
-                borderRadius: isHead ? '5px' : '2px',
+                borderRadius: isHead ? '4px' : '2px',
                 opacity: Math.max(0.4, 1 - (idx / snake.length) * 0.6),
               }}
             >
@@ -461,15 +461,13 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
                   <div className="w-1.5 h-1.5 rounded-full bg-slate-950 shadow-inner" />
                 </div>
               )}
-            </motion.div>
+            </div>
           );
         })}
 
         {/* Food Rendering */}
-        <motion.div
-          animate={{ scale: [1, 1.2, 1] }}
-          transition={{ duration: 0.8, repeat: Infinity, ease: 'easeInOut' }}
-          className={`absolute rounded-full z-15 flex items-center justify-center ${
+        <div
+          className={`absolute rounded-full z-15 flex items-center justify-center animate-pulse ${
             food.type === 'special'
               ? 'bg-amber-400 shadow-[0_0_15px_#F59E0B]'
               : food.type === 'speed'
@@ -484,7 +482,7 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
           }}
         >
           <div className="w-1 h-1 bg-white rounded-full" />
-        </motion.div>
+        </div>
 
         {/* Start / Idle Overlay */}
         {gameState === 'idle' && (

@@ -11,9 +11,12 @@ import {
   Info,
   Trophy,
   Zap,
+  Radio,
+  Users,
 } from 'lucide-react';
-import { ArcadeGameId } from '../types';
+import { ArcadeGameId, MultiplayerGameType } from '../types';
 import { playClickSound, triggerHaptic } from '../utils/audio';
+import { MultiplayerLobbyModal } from './MultiplayerLobbyModal';
 
 interface ArcadeHubProps {
   onSelectGame: (gameId: ArcadeGameId) => void;
@@ -23,6 +26,7 @@ interface ArcadeHubProps {
   snakeHighScore: number;
   connect4Wins: number;
   score2048HighScore: number;
+  onStartMultiplayer?: (gameType: MultiplayerGameType) => void;
 }
 
 export const ArcadeHub: React.FC<ArcadeHubProps> = ({
@@ -33,9 +37,11 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
   snakeHighScore,
   connect4Wins,
   score2048HighScore,
+  onStartMultiplayer,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'duel' | 'arcade'>('all');
   const [showHubInfo, setShowHubInfo] = useState(false);
+  const [showMultiplayerModal, setShowMultiplayerModal] = useState(false);
 
   const handleGameClick = (gameId: ArcadeGameId) => {
     playClickSound(soundEnabled);
@@ -141,9 +147,9 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
   );
 
   return (
-    <div className="w-full flex-1 flex flex-col justify-between p-3 sm:p-4 relative overflow-y-auto overflow-x-hidden bg-slate-950">
+    <div className="w-full h-full flex-1 flex flex-col p-3 sm:p-4 relative overflow-hidden bg-slate-950">
       {/* Top Header Bar */}
-      <header className="w-full flex items-center justify-between z-10 pb-3 border-b border-slate-800/80">
+      <header className="shrink-0 w-full flex items-center justify-between z-10 pb-2.5 border-b border-slate-800/80">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-pink-500 p-0.5 flex items-center justify-center shadow-[0_0_15px_rgba(0,240,255,0.35)] shrink-0">
             <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
@@ -189,51 +195,65 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
         </div>
       </header>
 
-      {/* Category Filter Chips */}
-      <nav className="flex items-center gap-2 my-3 z-10 overflow-x-auto no-scrollbar py-0.5">
-        <button
-          onClick={() => {
-            playClickSound(soundEnabled);
-            setSelectedCategory('all');
-          }}
-          className={`px-3 py-1.5 rounded-xl text-xs font-orbitron font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer ${
-            selectedCategory === 'all'
-              ? 'bg-cyan-500 text-slate-950 shadow-[0_0_14px_rgba(0,240,255,0.4)]'
-              : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
-          }`}
-        >
-          ALL GAMES ({games.length})
-        </button>
-        <button
-          onClick={() => {
-            playClickSound(soundEnabled);
-            setSelectedCategory('duel');
-          }}
-          className={`px-3 py-1.5 rounded-xl text-xs font-orbitron font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer ${
-            selectedCategory === 'duel'
-              ? 'bg-pink-500 text-white shadow-[0_0_14px_rgba(255,0,127,0.4)]'
-              : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
-          }`}
-        >
-          DUEL / VS
-        </button>
-        <button
-          onClick={() => {
-            playClickSound(soundEnabled);
-            setSelectedCategory('arcade');
-          }}
-          className={`px-3 py-1.5 rounded-xl text-xs font-orbitron font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer ${
-            selectedCategory === 'arcade'
-              ? 'bg-emerald-500 text-slate-950 shadow-[0_0_14px_rgba(16,185,129,0.4)]'
-              : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
-          }`}
-        >
-          ARCADE
-        </button>
-      </nav>
+      {/* Category Filter Chips & Online Room Button */}
+      <div className="shrink-0 w-full flex items-center justify-between gap-2 py-2 my-1 z-10">
+        <nav className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <button
+            onClick={() => {
+              playClickSound(soundEnabled);
+              setSelectedCategory('all');
+            }}
+            className={`shrink-0 h-8 px-3 flex items-center justify-center rounded-xl text-[11px] font-orbitron font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+              selectedCategory === 'all'
+                ? 'bg-cyan-500 text-slate-950 shadow-[0_0_14px_rgba(0,240,255,0.4)]'
+                : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700'
+            }`}
+          >
+            ALL ({games.length})
+          </button>
+          <button
+            onClick={() => {
+              playClickSound(soundEnabled);
+              setSelectedCategory('duel');
+            }}
+            className={`shrink-0 h-8 px-3 flex items-center justify-center rounded-xl text-[11px] font-orbitron font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+              selectedCategory === 'duel'
+                ? 'bg-pink-500 text-white shadow-[0_0_14px_rgba(255,0,127,0.4)]'
+                : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700'
+            }`}
+          >
+            DUEL
+          </button>
+          <button
+            onClick={() => {
+              playClickSound(soundEnabled);
+              setSelectedCategory('arcade');
+            }}
+            className={`shrink-0 h-8 px-3 flex items-center justify-center rounded-xl text-[11px] font-orbitron font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+              selectedCategory === 'arcade'
+                ? 'bg-emerald-500 text-slate-950 shadow-[0_0_14px_rgba(16,185,129,0.4)]'
+                : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700'
+            }`}
+          >
+            ARCADE
+          </button>
+        </nav>
 
-      {/* Games List - Responsive Grid */}
-      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 z-10 my-1">
+        <button
+          onClick={() => {
+            playClickSound(soundEnabled);
+            triggerHaptic('light');
+            setShowMultiplayerModal(true);
+          }}
+          className="shrink-0 h-8 px-3 rounded-xl bg-gradient-to-r from-cyan-500/20 to-pink-500/20 border border-cyan-400/50 hover:border-cyan-300 text-cyan-300 hover:text-white text-[11px] font-orbitron font-bold flex items-center gap-1.5 shadow-[0_0_12px_rgba(6,182,212,0.2)] transition-all cursor-pointer whitespace-nowrap"
+        >
+          <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+          <span>ONLINE 1v1</span>
+        </button>
+      </div>
+
+      {/* Games List - Scrollable Responsive Grid */}
+      <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 space-y-2.5 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-3 z-10 my-1 no-scrollbar">
         {filteredGames.map((game, index) => (
           <motion.div
             key={game.id}
@@ -288,8 +308,8 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
       </div>
 
       {/* Quick Launch Bottom Bar */}
-      <footer className="w-full pt-3 z-10">
-        <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-2 shadow-sm">
+      <footer className="shrink-0 w-full pt-2 z-10">
+        <div className="p-2.5 sm:p-3 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-2 shadow-sm">
           <div className="flex items-center gap-2.5 min-w-0">
             <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
             <div className="min-w-0">
@@ -354,6 +374,20 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
           </div>
         )}
       </AnimatePresence>
+
+      {/* Online P2P Multiplayer Lobby Modal */}
+      <MultiplayerLobbyModal
+        isOpen={showMultiplayerModal}
+        onClose={() => setShowMultiplayerModal(false)}
+        onStartGame={(gameType) => {
+          setShowMultiplayerModal(false);
+          if (onStartMultiplayer) {
+            onStartMultiplayer(gameType);
+          } else {
+            onSelectGame(gameType as ArcadeGameId);
+          }
+        }}
+      />
     </div>
   );
 };
