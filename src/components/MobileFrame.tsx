@@ -1,56 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { Wifi, BatteryMedium } from 'lucide-react';
+import React from 'react';
 
 interface MobileFrameProps {
   children: React.ReactNode;
 }
 
 export const MobileFrame: React.FC<MobileFrameProps> = ({ children }) => {
-  const [currentTime, setCurrentTime] = useState('09:41');
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      const hours = now.getHours().toString().padStart(2, '0');
-      const minutes = now.getMinutes().toString().padStart(2, '0');
-      setCurrentTime(`${hours}:${minutes}`);
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-0 sm:p-4 lg:p-6 select-none relative overflow-x-hidden cyber-grid">
-      {/* Main Container / Mobile Device Wrapper */}
-      <div className="transition-all duration-300 relative w-full max-w-[400px] h-[844px] max-h-[100vh] sm:max-h-[92vh] sm:rounded-[48px] sm:border-[10px] sm:border-slate-800/90 sm:shadow-[0_25px_60px_-15px_rgba(0,240,255,0.15)] bg-slate-950 overflow-hidden flex flex-col ring-1 ring-slate-700/40">
-        {/* Mobile Device Status Bar */}
-        <div className="w-full h-11 px-7 flex items-center justify-between z-20 text-[13px] font-semibold text-slate-200 select-none bg-slate-950/90 backdrop-blur-md shrink-0">
-          <span>{currentTime}</span>
-
-          {/* Dynamic Island / Camera Notch */}
-          <div className="w-24 h-5 bg-black rounded-full border border-slate-800/70 flex items-center justify-end px-2 gap-1.5 shadow-inner">
-            <div className="w-2 h-2 rounded-full bg-slate-900 border border-slate-800" />
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 animate-pulse" />
-          </div>
-
-          <div className="flex items-center gap-1.5 text-slate-300">
-            <span className="text-[10px] font-extrabold tracking-tight text-slate-400">5G</span>
-            <Wifi className="w-3.5 h-3.5" />
-            <BatteryMedium className="w-4 h-4 text-emerald-400" />
-          </div>
-        </div>
-
-        {/* Inner App Content Screen */}
-        <div className="flex-1 w-full overflow-y-auto overflow-x-hidden flex flex-col relative">
+    <div className="min-h-screen w-full bg-slate-950 text-slate-100 flex flex-col items-center justify-start sm:justify-center p-0 sm:p-4 md:p-6 overflow-x-hidden cyber-grid selection:bg-cyan-500/30 selection:text-cyan-200">
+      {/* Main Responsive Application Shell */}
+      <main className="w-full max-w-xl md:max-w-2xl sm:my-auto bg-slate-950/95 sm:rounded-3xl sm:border border-slate-800/80 sm:shadow-[0_10px_40px_-10px_rgba(0,240,255,0.12)] min-h-screen sm:min-h-[640px] sm:max-h-[92vh] flex flex-col relative overflow-hidden backdrop-blur-xl ring-1 ring-slate-800/40">
+        <div className="flex-1 w-full flex flex-col overflow-y-auto overflow-x-hidden">
           {children}
         </div>
-
-        {/* Mobile Home Bar Indicator */}
-        <div className="w-full h-5 flex items-center justify-center pb-1 shrink-0 bg-slate-950/90 z-20">
-          <div className="w-32 h-1 bg-slate-600/70 rounded-full" />
-        </div>
-      </div>
+      </main>
     </div>
   );
 };

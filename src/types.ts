@@ -31,3 +31,70 @@ export interface GameConfig {
   soundEnabled: boolean;
   hapticsEnabled: boolean;
 }
+
+/* =========================================================================
+   Arcade Hub & Additional Games Types
+   ========================================================================= */
+
+export type ArcadeGameId = 'hub' | 'tictactoe' | 'snake' | 'connect4' | '2048';
+
+export interface ArcadeGameInfo {
+  id: ArcadeGameId;
+  title: string;
+  subtitle: string;
+  badge: string;
+  icon: string;
+  themeColor: 'cyan' | 'pink' | 'emerald' | 'amber' | 'purple';
+  description: string;
+  modes: string[];
+}
+
+// Snake Types
+export type SnakeDirection = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
+export type SnakeDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export interface SnakeFood extends Point {
+  type: 'regular' | 'special' | 'speed';
+  points: number;
+}
+
+export interface SnakeStats {
+  highScore: number;
+  totalGames: number;
+  highestLength: number;
+  totalApples: number;
+}
+
+// Connect 4 Types
+export type Connect4Player = 'P1' | 'P2';
+export type Connect4Cell = Connect4Player | null;
+export type Connect4Board = Connect4Cell[][]; // 6 rows x 7 cols
+
+export interface Connect4Stats {
+  winsP1: number;
+  winsP2: number;
+  draws: number;
+  totalGames: number;
+}
+
+// 2048 Types
+export interface Game2048Tile {
+  id: string;
+  value: number;
+  row: number;
+  col: number;
+  isNew?: boolean;
+  isMerged?: boolean;
+}
+
+export interface Game2048Stats {
+  highScore: number;
+  bestTile: number;
+  totalGames: number;
+}
+

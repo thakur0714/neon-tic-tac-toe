@@ -1,6 +1,6 @@
 {
   "name": "Ultimate Tic-Tac-Toe",
-  "description": "A high-energy, neon-animated mobile Tic-Tac-Toe game featuring Pass & Play, smart Minimax AI, dynamic sound effects, and confetti celebrations.",
+  "description": "High-energy Cyber Arcade Game Center featuring Ultimate Tic-Tac-Toe with Minimax AI, Cyber Snake 2099, Neon Connect 4, and Neon 2048 with synthesizers and haptics.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

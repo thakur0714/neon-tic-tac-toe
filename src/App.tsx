@@ -1,25 +1,21 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MobileFrame } from './components/MobileFrame';
-import { SplashScreen } from './components/SplashScreen';
-import { ModeSelection } from './components/ModeSelection';
-import { ScoreBoard } from './components/ScoreBoard';
-import { GameBoard } from './components/GameBoard';
-import { WinnerModal } from './components/WinnerModal';
-import { StatsModal } from './components/StatsModal';
-import { RulesModal } from './components/RulesModal';
-import { Board, CellValue, GameConfig, GameStats, Player, WinResult } from './types';
-import { checkWinner, getBestMoveMinimax, getEasyAIMove, getMediumAIMove } from './utils/ai';
+import { ArcadeHub } from './components/ArcadeHub';
+import { TicTacToeGame } from './components/TicTacToeGame';
+import { CyberSnake } from './components/games/CyberSnake';
+import { NeonConnect4 } from './components/games/NeonConnect4';
+import { Neon2048 } from './components/games/Neon2048';
 import {
-  playClickSound,
-  playDrawSound,
-  playMoveSound,
-  playResetSound,
-  playWinSound,
-  triggerHaptic,
-} from './utils/audio';
-import { fireWinnerConfetti } from './utils/confetti';
+  ArcadeGameId,
+  Connect4Stats,
+  Game2048Stats,
+  GameConfig,
+  GameStats,
+  SnakeStats,
+} from './types';
+import { playClickSound } from './utils/audio';
 
-const DEFAULT_CONFIG: GameConfig = {
+const DEFAULT_TTT_CONFIG: GameConfig = {
   mode: 'ai-hard',
   playerSymbol: 'X',
   aiSymbol: 'O',
@@ -28,7 +24,7 @@ const DEFAULT_CONFIG: GameConfig = {
   hapticsEnabled: true,
 };
 
-const DEFAULT_STATS: GameStats = {
+const DEFAULT_TTT_STATS: GameStats = {
   winsX: 0,
   winsO: 0,
   draws: 0,
@@ -38,347 +34,194 @@ const DEFAULT_STATS: GameStats = {
   lastWinner: null,
 };
 
+const DEFAULT_SNAKE_STATS: SnakeStats = {
+  highScore: 0,
+  totalGames: 0,
+  highestLength: 3,
+  totalApples: 0,
+};
+
+const DEFAULT_CONNECT4_STATS: Connect4Stats = {
+  winsP1: 0,
+  winsP2: 0,
+  draws: 0,
+  totalGames: 0,
+};
+
+const DEFAULT_2048_STATS: Game2048Stats = {
+  highScore: 0,
+  bestTile: 0,
+  totalGames: 0,
+};
+
 export default function App() {
-  const [screen, setScreen] = useState<'splash' | 'menu' | 'game'>('splash');
-  const [config, setConfig] = useState<GameConfig>(() => {
+  // Navigation: Start at Arcade Hub
+  const [activeGame, setActiveGame] = useState<ArcadeGameId>('hub');
+
+  // Tic-Tac-Toe State
+  const [tttConfig, setTttConfig] = useState<GameConfig>(() => {
     try {
       const saved = localStorage.getItem('ttt_config');
-      return saved ? { ...DEFAULT_CONFIG, ...JSON.parse(saved) } : DEFAULT_CONFIG;
+      return saved ? { ...DEFAULT_TTT_CONFIG, ...JSON.parse(saved) } : DEFAULT_TTT_CONFIG;
     } catch {
-      return DEFAULT_CONFIG;
+      return DEFAULT_TTT_CONFIG;
     }
   });
 
-  const [stats, setStats] = useState<GameStats>(() => {
+  const [tttStats, setTttStats] = useState<GameStats>(() => {
     try {
       const saved = localStorage.getItem('ttt_stats');
-      return saved ? { ...DEFAULT_STATS, ...JSON.parse(saved) } : DEFAULT_STATS;
+      return saved ? { ...DEFAULT_TTT_STATS, ...JSON.parse(saved) } : DEFAULT_TTT_STATS;
     } catch {
-      return DEFAULT_STATS;
+      return DEFAULT_TTT_STATS;
     }
   });
 
-  const [board, setBoard] = useState<Board>(Array(9).fill(null));
-  const [currentPlayer, setCurrentPlayer] = useState<Player>('X');
-  const [isAiThinking, setIsAiThinking] = useState(false);
-  const [winResult, setWinResult] = useState<WinResult>({ winner: null, line: null });
-  const [isWinnerModalOpen, setIsWinnerModalOpen] = useState(false);
+  // Snake State
+  const [snakeStats, setSnakeStats] = useState<SnakeStats>(() => {
+    try {
+      const saved = localStorage.getItem('snake_stats');
+      return saved ? { ...DEFAULT_SNAKE_STATS, ...JSON.parse(saved) } : DEFAULT_SNAKE_STATS;
+    } catch {
+      return DEFAULT_SNAKE_STATS;
+    }
+  });
 
-  // Secondary modals
-  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
-  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  // Connect 4 State
+  const [connect4Stats, setConnect4Stats] = useState<Connect4Stats>(() => {
+    try {
+      const saved = localStorage.getItem('connect4_stats');
+      return saved ? { ...DEFAULT_CONNECT4_STATS, ...JSON.parse(saved) } : DEFAULT_CONNECT4_STATS;
+    } catch {
+      return DEFAULT_CONNECT4_STATS;
+    }
+  });
 
-  const aiTimeoutRef = useRef<number | null>(null);
+  // 2048 State
+  const [game2048Stats, setGame2048Stats] = useState<Game2048Stats>(() => {
+    try {
+      const saved = localStorage.getItem('game2048_stats');
+      return saved ? { ...DEFAULT_2048_STATS, ...JSON.parse(saved) } : DEFAULT_2048_STATS;
+    } catch {
+      return DEFAULT_2048_STATS;
+    }
+  });
 
-  // Persist settings
+  // Global Sound state
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('arcade_sound');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+
+  // Persistence
   useEffect(() => {
     try {
-      localStorage.setItem('ttt_config', JSON.stringify(config));
+      localStorage.setItem('ttt_config', JSON.stringify(tttConfig));
     } catch {}
-  }, [config]);
+  }, [tttConfig]);
 
-  // Persist stats
   useEffect(() => {
     try {
-      localStorage.setItem('ttt_stats', JSON.stringify(stats));
+      localStorage.setItem('ttt_stats', JSON.stringify(tttStats));
     } catch {}
-  }, [stats]);
+  }, [tttStats]);
 
-  // Cleanup pending AI moves on unmount or reset
   useEffect(() => {
-    return () => {
-      if (aiTimeoutRef.current) {
-        clearTimeout(aiTimeoutRef.current);
-      }
-    };
-  }, []);
+    try {
+      localStorage.setItem('snake_stats', JSON.stringify(snakeStats));
+    } catch {}
+  }, [snakeStats]);
 
-  // Update configuration helper
-  const handleUpdateConfig = (newConfig: Partial<GameConfig>) => {
-    setConfig((prev) => ({ ...prev, ...newConfig }));
-  };
+  useEffect(() => {
+    try {
+      localStorage.setItem('connect4_stats', JSON.stringify(connect4Stats));
+    } catch {}
+  }, [connect4Stats]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('game2048_stats', JSON.stringify(game2048Stats));
+    } catch {}
+  }, [game2048Stats]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('arcade_sound', JSON.stringify(soundEnabled));
+      setTttConfig((prev) => ({ ...prev, soundEnabled }));
+    } catch {}
+  }, [soundEnabled]);
 
   const handleToggleSound = () => {
-    setConfig((prev) => {
-      const updated = !prev.soundEnabled;
-      playClickSound(updated);
-      return { ...prev, soundEnabled: updated };
-    });
-  };
-
-  // Reset or Start game round
-  const resetGameRound = useCallback(
-    (customConfig?: GameConfig) => {
-      if (aiTimeoutRef.current) {
-        clearTimeout(aiTimeoutRef.current);
-        aiTimeoutRef.current = null;
-      }
-
-      playResetSound(config.soundEnabled);
-      const activeConfig = customConfig || config;
-      const initialPlayer = activeConfig.startingPlayer;
-
-      setBoard(Array(9).fill(null));
-      setCurrentPlayer(initialPlayer);
-      setWinResult({ winner: null, line: null });
-      setIsWinnerModalOpen(false);
-      setIsAiThinking(false);
-
-      // If AI moves first
-      if (activeConfig.mode.startsWith('ai') && initialPlayer === activeConfig.aiSymbol) {
-        setIsAiThinking(true);
-        aiTimeoutRef.current = window.setTimeout(() => {
-          let move = 4; // center
-          if (activeConfig.mode === 'ai-easy') {
-            move = Math.floor(Math.random() * 9);
-          } else if (activeConfig.mode === 'ai-hard') {
-            const openings = [0, 2, 4, 6, 8];
-            move = openings[Math.floor(Math.random() * openings.length)];
-          }
-
-          const freshBoard: Board = Array(9).fill(null);
-          freshBoard[move] = activeConfig.aiSymbol;
-          setBoard(freshBoard);
-          playMoveSound(activeConfig.aiSymbol, activeConfig.soundEnabled);
-          triggerHaptic('light', activeConfig.hapticsEnabled);
-
-          setCurrentPlayer(activeConfig.playerSymbol);
-          setIsAiThinking(false);
-        }, 500);
-      }
-    },
-    [config]
-  );
-
-  // Handle game conclusion
-  const handleGameOver = useCallback(
-    (result: WinResult, currentBoard: Board) => {
-      setWinResult(result);
-
-      setStats((prev) => {
-        const isWinX = result.winner === 'X';
-        const isWinO = result.winner === 'O';
-        const isDraw = result.winner === 'draw';
-
-        const newWinsX = isWinX ? prev.winsX + 1 : prev.winsX;
-        const newWinsO = isWinO ? prev.winsO + 1 : prev.winsO;
-        const newDraws = isDraw ? prev.draws + 1 : prev.draws;
-        const newTotal = prev.totalGames + 1;
-
-        let newStreak = prev.currentStreak;
-        if (config.mode.startsWith('ai')) {
-          if (result.winner === config.playerSymbol) {
-            newStreak = prev.currentStreak + 1;
-          } else if (result.winner === config.aiSymbol) {
-            newStreak = 0;
-          }
-        } else {
-          // PvP: streak continues if same winner
-          if (result.winner !== 'draw') {
-            newStreak = prev.lastWinner === result.winner ? prev.currentStreak + 1 : 1;
-          }
-        }
-
-        const newBestStreak = Math.max(prev.bestStreak, newStreak);
-
-        return {
-          winsX: newWinsX,
-          winsO: newWinsO,
-          draws: newDraws,
-          totalGames: newTotal,
-          currentStreak: newStreak,
-          bestStreak: newBestStreak,
-          lastWinner: result.winner,
-        };
-      });
-
-      if (result.winner === 'draw') {
-        playDrawSound(config.soundEnabled);
-        triggerHaptic('medium', config.hapticsEnabled);
-      } else {
-        playWinSound(config.soundEnabled);
-        triggerHaptic('success', config.hapticsEnabled);
-        fireWinnerConfetti();
-      }
-
-      // Allow 450ms for user to admire the winning strike line before modal opens
-      setTimeout(() => {
-        setIsWinnerModalOpen(true);
-      }, 450);
-    },
-    [config]
-  );
-
-  // Handle Human Move
-  const handleCellClick = (index: number) => {
-    if (board[index] !== null || winResult.winner !== null || isAiThinking) {
-      return;
-    }
-
-    // In AI mode, prevent human from playing if it's currently AI's turn
-    if (config.mode.startsWith('ai') && currentPlayer !== config.playerSymbol) {
-      return;
-    }
-
-    playMoveSound(currentPlayer, config.soundEnabled);
-    triggerHaptic('light', config.hapticsEnabled);
-
-    const newBoard = [...board];
-    newBoard[index] = currentPlayer;
-    setBoard(newBoard);
-
-    const result = checkWinner(newBoard);
-
-    if (result.winner !== null) {
-      handleGameOver(result, newBoard);
-      return;
-    }
-
-    const nextPlayer: Player = currentPlayer === 'X' ? 'O' : 'X';
-    setCurrentPlayer(nextPlayer);
-
-    // AI Turn Trigger
-    if (config.mode.startsWith('ai') && nextPlayer === config.aiSymbol) {
-      setIsAiThinking(true);
-
-      aiTimeoutRef.current = window.setTimeout(() => {
-        let aiMove = -1;
-
-        if (config.mode === 'ai-easy') {
-          aiMove = getEasyAIMove(newBoard);
-        } else if (config.mode === 'ai-medium') {
-          aiMove = getMediumAIMove(newBoard, config.aiSymbol);
-        } else {
-          // Hard Unbeatable Minimax
-          aiMove = getBestMoveMinimax(newBoard, config.aiSymbol);
-        }
-
-        if (aiMove !== -1) {
-          const aiBoard = [...newBoard];
-          aiBoard[aiMove] = config.aiSymbol;
-          setBoard(aiBoard);
-
-          playMoveSound(config.aiSymbol, config.soundEnabled);
-          triggerHaptic('light', config.hapticsEnabled);
-
-          const aiResult = checkWinner(aiBoard);
-
-          if (aiResult.winner !== null) {
-            handleGameOver(aiResult, aiBoard);
-          } else {
-            setCurrentPlayer(config.playerSymbol);
-          }
-        }
-
-        setIsAiThinking(false);
-      }, 420);
-    }
-  };
-
-  const handleResetStats = () => {
-    setStats({
-      winsX: 0,
-      winsO: 0,
-      draws: 0,
-      totalGames: 0,
-      currentStreak: 0,
-      bestStreak: 0,
-      lastWinner: null,
+    setSoundEnabled((prev) => {
+      const nextVal = !prev;
+      playClickSound(nextVal);
+      return nextVal;
     });
   };
 
   return (
     <MobileFrame>
-      {/* Screen 1: High-Energy Animated Splash Screen */}
-      {screen === 'splash' && (
-        <SplashScreen
-          onStart={() => setScreen('menu')}
-          onOpenRules={() => setIsRulesModalOpen(true)}
-          onOpenStats={() => setIsStatsModalOpen(true)}
+      {/* 1. Main Game Center Hub */}
+      {activeGame === 'hub' && (
+        <ArcadeHub
+          onSelectGame={(gameId) => setActiveGame(gameId)}
+          soundEnabled={soundEnabled}
           onToggleSound={handleToggleSound}
-          soundEnabled={config.soundEnabled}
+          tttStreak={tttStats.bestStreak}
+          snakeHighScore={snakeStats.highScore}
+          connect4Wins={connect4Stats.winsP1 + connect4Stats.winsP2}
+          score2048HighScore={game2048Stats.highScore}
         />
       )}
 
-      {/* Screen 2: Mode Selection Menu */}
-      {screen === 'menu' && (
-        <ModeSelection
-          config={config}
-          onUpdateConfig={handleUpdateConfig}
-          onStartGame={() => {
-            resetGameRound();
-            setScreen('game');
-          }}
-          onBack={() => setScreen('splash')}
-          onOpenRules={() => setIsRulesModalOpen(true)}
-          onOpenStats={() => setIsStatsModalOpen(true)}
+      {/* 2. Ultimate Tic-Tac-Toe Game */}
+      {activeGame === 'tictactoe' && (
+        <TicTacToeGame
+          onBackToHub={() => setActiveGame('hub')}
+          config={tttConfig}
+          onUpdateConfig={(newConf) => setTttConfig((p) => ({ ...p, ...newConf }))}
           onToggleSound={handleToggleSound}
+          stats={tttStats}
+          onUpdateStats={setTttStats}
         />
       )}
 
-      {/* Screen 3: Game Screen & HUD */}
-      {screen === 'game' && (
-        <div className="flex-1 flex flex-col justify-between py-2 relative overflow-hidden">
-          {/* Background cyber lighting */}
-          <div className="absolute top-1/3 -left-16 w-44 h-44 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-1/4 -right-16 w-44 h-44 bg-pink-500/10 rounded-full blur-3xl pointer-events-none" />
-
-          {/* Top Scoreboard HUD */}
-          <ScoreBoard
-            config={config}
-            stats={stats}
-            currentPlayer={currentPlayer}
-            isAiThinking={isAiThinking}
-            onReset={() => resetGameRound()}
-            onBackToMenu={() => setScreen('menu')}
-            onToggleSound={handleToggleSound}
-            onOpenStats={() => setIsStatsModalOpen(true)}
-            onOpenRules={() => setIsRulesModalOpen(true)}
-          />
-
-          {/* 3x3 Animated Neon Grid */}
-          <GameBoard
-            board={board}
-            winResult={winResult}
-            currentPlayer={currentPlayer}
-            isAiThinking={isAiThinking}
-            disabled={winResult.winner !== null}
-            onCellClick={handleCellClick}
-          />
-
-          {/* Celebration Winner Modal */}
-          <WinnerModal
-            isOpen={isWinnerModalOpen}
-            winResult={winResult}
-            config={config}
-            stats={stats}
-            onPlayAgain={() => resetGameRound()}
-            onMainMenu={() => {
-              setIsWinnerModalOpen(false);
-              setScreen('menu');
-            }}
-            onOpenStats={() => {
-              setIsWinnerModalOpen(false);
-              setIsStatsModalOpen(true);
-            }}
-          />
-        </div>
+      {/* 3. Cyber Snake 2099 */}
+      {activeGame === 'snake' && (
+        <CyberSnake
+          onBackToHub={() => setActiveGame('hub')}
+          soundEnabled={soundEnabled}
+          onToggleSound={handleToggleSound}
+          stats={snakeStats}
+          onUpdateStats={setSnakeStats}
+        />
       )}
 
-      {/* Modals */}
-      <StatsModal
-        isOpen={isStatsModalOpen}
-        stats={stats}
-        soundEnabled={config.soundEnabled}
-        onClose={() => setIsStatsModalOpen(false)}
-        onResetStats={handleResetStats}
-      />
+      {/* 4. Neon Connect 4 */}
+      {activeGame === 'connect4' && (
+        <NeonConnect4
+          onBackToHub={() => setActiveGame('hub')}
+          soundEnabled={soundEnabled}
+          onToggleSound={handleToggleSound}
+          stats={connect4Stats}
+          onUpdateStats={setConnect4Stats}
+        />
+      )}
 
-      <RulesModal
-        isOpen={isRulesModalOpen}
-        soundEnabled={config.soundEnabled}
-        onClose={() => setIsRulesModalOpen(false)}
-      />
+      {/* 5. Neon 2048 Matrix */}
+      {activeGame === '2048' && (
+        <Neon2048
+          onBackToHub={() => setActiveGame('hub')}
+          soundEnabled={soundEnabled}
+          onToggleSound={handleToggleSound}
+          stats={game2048Stats}
+          onUpdateStats={setGame2048Stats}
+        />
+      )}
     </MobileFrame>
   );
 }
