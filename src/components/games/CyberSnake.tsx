@@ -10,10 +10,6 @@ import {
   Zap,
   Play,
   Pause,
-  ChevronUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Sparkles,
   ShieldAlert,
 } from 'lucide-react';
@@ -26,6 +22,7 @@ import {
   triggerHaptic,
 } from '../../utils/audio';
 import { fireWinnerConfetti } from '../../utils/confetti';
+import { CyberDPad, DPadDirection } from '../CyberDPad';
 
 interface CyberSnakeProps {
   onBackToHub: () => void;
@@ -507,76 +504,66 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
 
       {/* Cyber Virtual D-Pad for Mobile Touch Precision */}
       <div className="w-full flex items-center justify-between px-2 pt-1 z-10">
-        <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+        <div className="flex flex-col gap-2">
           <button
             onClick={() => {
               playClickSound(soundEnabled);
               setIsWallWrapping(!isWallWrapping);
             }}
-            className={`px-2 py-1 rounded-lg border text-[10px] font-bold ${
+            className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-orbitron font-bold transition-all cursor-pointer ${
               isWallWrapping
-                ? 'bg-cyan-950 text-cyan-300 border-cyan-500/50'
+                ? 'bg-cyan-950 text-cyan-300 border-cyan-500/50 shadow-[0_0_10px_rgba(0,240,255,0.3)]'
                 : 'bg-slate-900 text-slate-400 border-slate-800'
             }`}
           >
-            Wrap: {isWallWrapping ? 'ON' : 'OFF'}
+            WRAP: {isWallWrapping ? 'ON' : 'OFF'}
           </button>
 
           {gameState === 'running' && (
             <button
               onClick={togglePause}
-              className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300"
+              className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-orbitron text-[11px] font-bold flex items-center gap-1 cursor-pointer"
             >
               <Pause className="w-3.5 h-3.5" />
+              <span>PAUSE</span>
             </button>
           )}
         </div>
 
-        {/* D-PAD Control Buttons */}
-        <div className="flex flex-col items-center">
-          <button
-            onClick={() => {
-              triggerHaptic('light');
-              changeDirection({ x: 0, y: -1 });
-            }}
-            className="w-10 h-9 rounded-t-xl bg-slate-900/90 active:bg-emerald-500 active:text-slate-950 border border-slate-800 flex items-center justify-center text-slate-200"
-            aria-label="Up"
-          >
-            <ChevronUp className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                triggerHaptic('light');
-                changeDirection({ x: -1, y: 0 });
-              }}
-              className="w-10 h-9 rounded-l-xl bg-slate-900/90 active:bg-emerald-500 active:text-slate-950 border border-slate-800 flex items-center justify-center text-slate-200"
-              aria-label="Left"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => {
-                triggerHaptic('light');
+        {/* Unified Cyber Cross D-Pad with Slide/Touch Precision */}
+        <CyberDPad
+          onDirection={(dir: DPadDirection) => {
+            if (gameState === 'idle') {
+              startGame();
+            }
+            switch (dir) {
+              case 'UP':
+                changeDirection({ x: 0, y: -1 });
+                break;
+              case 'DOWN':
                 changeDirection({ x: 0, y: 1 });
-              }}
-              className="w-10 h-9 rounded-b-xl bg-slate-900/90 active:bg-emerald-500 active:text-slate-950 border border-slate-800 flex items-center justify-center text-slate-200"
-              aria-label="Down"
-            >
-              <ChevronDown className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => {
-                triggerHaptic('light');
+                break;
+              case 'LEFT':
+                changeDirection({ x: -1, y: 0 });
+                break;
+              case 'RIGHT':
                 changeDirection({ x: 1, y: 0 });
-              }}
-              className="w-10 h-9 rounded-r-xl bg-slate-900/90 active:bg-emerald-500 active:text-slate-950 border border-slate-800 flex items-center justify-center text-slate-200"
-              aria-label="Right"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+                break;
+            }
+          }}
+          activeDirection={
+            nextDirection.y === -1
+              ? 'UP'
+              : nextDirection.y === 1
+              ? 'DOWN'
+              : nextDirection.x === -1
+              ? 'LEFT'
+              : 'RIGHT'
+          }
+          soundEnabled={soundEnabled}
+          theme="emerald"
+          size="md"
+        />
       </div>
     </div>
   );

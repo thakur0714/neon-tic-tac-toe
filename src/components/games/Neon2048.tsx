@@ -8,10 +8,6 @@ import {
   Trophy,
   Undo2,
   Sparkles,
-  ChevronUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 import { Game2048Stats } from '../../types';
 import {
@@ -21,6 +17,7 @@ import {
   triggerHaptic,
 } from '../../utils/audio';
 import { fireWinnerConfetti } from '../../utils/confetti';
+import { CyberDPad, DPadDirection } from '../CyberDPad';
 
 interface Neon2048Props {
   onBackToHub: () => void;
@@ -404,18 +401,19 @@ export const Neon2048: React.FC<Neon2048Props> = ({
 
       {/* D-Pad Arrow Controls & Utility */}
       <div className="w-full flex items-center justify-between px-2 pt-1 z-10">
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-col gap-2">
           <button
             onClick={restartGame}
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer"
+            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center gap-1.5 text-xs font-orbitron font-bold"
             title="Restart"
           >
             <RotateCcw className="w-4 h-4" />
+            <span>RESET</span>
           </button>
           <button
             onClick={undoMove}
             disabled={!prevBoard}
-            className={`p-2 rounded-xl border transition-all cursor-pointer ${
+            className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 text-xs font-orbitron font-bold ${
               prevBoard
                 ? 'bg-slate-900 border-slate-800 text-cyan-400 hover:text-white'
                 : 'bg-slate-950 border-slate-900 text-slate-700 cursor-not-allowed'
@@ -423,42 +421,17 @@ export const Neon2048: React.FC<Neon2048Props> = ({
             title="Undo Move"
           >
             <Undo2 className="w-4 h-4" />
+            <span>UNDO</span>
           </button>
         </div>
 
-        {/* Direction Controls */}
-        <div className="flex flex-col items-center">
-          <button
-            onClick={() => move('UP')}
-            className="w-10 h-8 rounded-t-xl bg-slate-900/90 active:bg-amber-500 active:text-slate-950 border border-slate-800 flex items-center justify-center text-slate-200"
-            aria-label="Up"
-          >
-            <ChevronUp className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => move('LEFT')}
-              className="w-10 h-8 rounded-l-xl bg-slate-900/90 active:bg-amber-500 active:text-slate-950 border border-slate-800 flex items-center justify-center text-slate-200"
-              aria-label="Left"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => move('DOWN')}
-              className="w-10 h-8 rounded-b-xl bg-slate-900/90 active:bg-amber-500 active:text-slate-950 border border-slate-800 flex items-center justify-center text-slate-200"
-              aria-label="Down"
-            >
-              <ChevronDown className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => move('RIGHT')}
-              className="w-10 h-8 rounded-r-xl bg-slate-900/90 active:bg-amber-500 active:text-slate-950 border border-slate-800 flex items-center justify-center text-slate-200"
-              aria-label="Right"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+        {/* Unified Cyber Cross D-Pad with Slide/Touch Precision */}
+        <CyberDPad
+          onDirection={(dir: DPadDirection) => move(dir)}
+          soundEnabled={soundEnabled}
+          theme="amber"
+          size="md"
+        />
       </div>
     </div>
   );

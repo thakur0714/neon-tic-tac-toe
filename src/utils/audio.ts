@@ -353,3 +353,55 @@ export function playMergeSound(value = 4, enabled = true) {
   }
 }
 
+/**
+ * Satisfying D-Pad tactile directional click sound
+ */
+export function playDPadSound(direction: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    let startFreq = 600;
+    let endFreq = 800;
+
+    switch (direction) {
+      case 'UP':
+        startFreq = 650;
+        endFreq = 950;
+        break;
+      case 'DOWN':
+        startFreq = 550;
+        endFreq = 380;
+        break;
+      case 'LEFT':
+        startFreq = 480;
+        endFreq = 620;
+        break;
+      case 'RIGHT':
+        startFreq = 580;
+        endFreq = 760;
+        break;
+    }
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(startFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, now + 0.04);
+
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.06);
+  } catch {
+    // Safe
+  }
+}
+
