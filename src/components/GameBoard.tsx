@@ -57,9 +57,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   }
 
   return (
-    <div className="w-full flex-1 flex items-center justify-center p-4">
+    <div className="w-full flex-1 flex items-center justify-center p-1.5 sm:p-4">
       {/* 3x3 Arena Wrapper */}
-      <div className="relative w-full max-w-[320px] aspect-square rounded-3xl p-3 bg-slate-900/60 border border-slate-800/90 shadow-[0_10px_35px_-5px_rgba(0,0,0,0.7)] backdrop-blur-xl cyber-grid-cyan">
+      <div className="relative w-full max-w-[min(340px,46vh)] aspect-square rounded-3xl p-2.5 bg-slate-900/60 border border-slate-800/90 shadow-[0_10px_35px_-5px_rgba(0,0,0,0.7)] backdrop-blur-xl cyber-grid-cyan shrink-0">
         {/* Subtle grid accent glow borders */}
         <div className="absolute inset-0 rounded-3xl pointer-events-none border border-cyan-500/20" />
 

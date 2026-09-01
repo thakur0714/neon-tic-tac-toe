@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import {
   ArrowLeft,
   Volume2,
   VolumeX,
   RotateCcw,
   Trophy,
-  Flame,
-  Zap,
   Play,
   Pause,
   Sparkles,
   ShieldAlert,
+  Sliders,
+  Hand,
 } from 'lucide-react';
 import { Point, SnakeDifficulty, SnakeFood, SnakeStats } from '../../types';
 import {
@@ -22,7 +22,7 @@ import {
   triggerHaptic,
 } from '../../utils/audio';
 import { fireWinnerConfetti } from '../../utils/confetti';
-import { CyberDPad, DPadDirection } from '../CyberDPad';
+import { CyberDPad, DPadDirection, DPadLayoutMode } from '../CyberDPad';
 
 interface CyberSnakeProps {
   onBackToHub: () => void;
@@ -62,12 +62,24 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
   const [applesEaten, setApplesEaten] = useState(0);
   const [difficulty, setDifficulty] = useState<SnakeDifficulty>('medium');
   const [isWallWrapping, setIsWallWrapping] = useState(false);
+  const [controlMode, setControlMode] = useState<'swipe' | 'wheel' | 'split-bar'>('swipe');
+  const [activeSwipeIndicator, setActiveSwipeIndicator] = useState<'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | null>(null);
 
   const [gameState, setGameState] = useState<'idle' | 'running' | 'paused' | 'gameover'>('idle');
   const [isNewHighScore, setIsNewHighScore] = useState(false);
 
   const gameLoopRef = useRef<number | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const swipeIndicatorTimerRef = useRef<number | null>(null);
+
+  const flashSwipeIndicator = useCallback((dir: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT') => {
+    setActiveSwipeIndicator(dir);
+    triggerHaptic('light');
+    if (swipeIndicatorTimerRef.current) clearTimeout(swipeIndicatorTimerRef.current);
+    swipeIndicatorTimerRef.current = window.setTimeout(() => {
+      setActiveSwipeIndicator(null);
+    }, 120);
+  }, []);
 
   // Generate food avoiding snake body
   const spawnFood = useCallback(
@@ -111,26 +123,50 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
     setGameState('running');
   };
 
+  // Pause toggle
   const togglePause = () => {
-    if (gameState === 'running') {
-      playClickSound(soundEnabled);
-      setGameState('paused');
-    } else if (gameState === 'paused') {
-      playClickSound(soundEnabled);
-      setGameState('running');
-    }
+    playClickSound(soundEnabled);
+    setGameState((prev) => (prev === 'running' ? 'paused' : prev === 'paused' ? 'running' : prev));
   };
 
-  // Change direction with reverse-check
+  // Turn directional logic
   const changeDirection = useCallback(
     (newDir: Point) => {
-      // Prevent 180-degree immediate reversal into own body
+      if (gameState === 'idle') {
+        setGameState('running');
+      }
+      // Prevent 180-degree instant reversal
       if (direction.x + newDir.x === 0 && direction.y + newDir.y === 0) {
         return;
       }
       setNextDirection(newDir);
     },
-    [direction]
+    [direction, gameState]
+  );
+
+  // Handle Game Over
+  const handleGameOver = useCallback(
+    (finalLength: number, finalScore: number) => {
+      if (gameLoopRef.current) clearInterval(gameLoopRef.current);
+      setGameState('gameover');
+      playCrashSound(soundEnabled);
+      triggerHaptic('heavy');
+
+      const isHigh = finalScore > stats.highScore;
+      if (isHigh) {
+        setIsNewHighScore(true);
+        playWinSound(soundEnabled);
+        fireWinnerConfetti();
+      }
+
+      onUpdateStats((prev) => ({
+        highScore: Math.max(prev.highScore, finalScore),
+        totalApplesEaten: prev.totalApplesEaten + applesEaten,
+        totalGames: prev.totalGames + 1,
+        longestSnake: Math.max(prev.longestSnake, finalLength),
+      }));
+    },
+    [applesEaten, onUpdateStats, soundEnabled, stats.highScore]
   );
 
   // Keyboard navigation
@@ -162,30 +198,48 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [changeDirection, gameState]);
 
-  // Touch Swipe Gesture Handling
+  // Touch Swipe Gesture on Canvas & Container with Ultra-Fast Zero-Lag Sensitivity
   const handleTouchStart = (e: React.TouchEvent) => {
     const touch = e.touches[0];
     touchStartRef.current = { x: touch.clientX, y: touch.clientY };
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
+  const handleTouchMove = (e: React.TouchEvent) => {
     if (!touchStartRef.current) return;
-    const touch = e.changedTouches[0];
+    const touch = e.touches[0];
     const deltaX = touch.clientX - touchStartRef.current.x;
     const deltaY = touch.clientY - touchStartRef.current.y;
-    touchStartRef.current = null;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
 
-    if (Math.abs(deltaX) < 15 && Math.abs(deltaY) < 15) return; // Too short
+    // Ultra-fast 8px swipe threshold for instant zero-lag response
+    const SWIPE_THRESHOLD = 8;
 
-    if (Math.abs(deltaX) > Math.abs(deltaY)) {
-      // Horizontal swipe
-      if (deltaX > 0) changeDirection({ x: 1, y: 0 });
-      else changeDirection({ x: -1, y: 0 });
-    } else {
-      // Vertical swipe
-      if (deltaY > 0) changeDirection({ x: 0, y: 1 });
-      else changeDirection({ x: 0, y: -1 });
+    if (absX > SWIPE_THRESHOLD || absY > SWIPE_THRESHOLD) {
+      if (absX > absY) {
+        if (deltaX > 0) {
+          changeDirection({ x: 1, y: 0 });
+          flashSwipeIndicator('RIGHT');
+        } else {
+          changeDirection({ x: -1, y: 0 });
+          flashSwipeIndicator('LEFT');
+        }
+      } else {
+        if (deltaY > 0) {
+          changeDirection({ x: 0, y: 1 });
+          flashSwipeIndicator('DOWN');
+        } else {
+          changeDirection({ x: 0, y: -1 });
+          flashSwipeIndicator('UP');
+        }
+      }
+      // Re-anchor to current finger position for smooth continuous steering without lifting
+      touchStartRef.current = { x: touch.clientX, y: touch.clientY };
     }
+  };
+
+  const handleTouchEnd = () => {
+    touchStartRef.current = null;
   };
 
   // Game Loop Tick
@@ -211,7 +265,6 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
           nextY = (nextY + GRID_SIZE) % GRID_SIZE;
         } else {
           if (nextX < 0 || nextX >= GRID_SIZE || nextY < 0 || nextY >= GRID_SIZE) {
-            // Hit wall
             handleGameOver(prevSnake.length, score);
             return prevSnake;
           }
@@ -242,7 +295,6 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
 
           setFood(spawnFood(newSnake));
         } else {
-          // Remove tail if didn't eat
           newSnake.pop();
         }
 
@@ -255,46 +307,31 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
       if (gameLoopRef.current) clearInterval(gameLoopRef.current);
     };
   }, [
-    gameState,
-    nextDirection,
     difficulty,
-    isWallWrapping,
     food,
-    score,
+    gameState,
+    handleGameOver,
+    isWallWrapping,
     multiplier,
-    spawnFood,
+    nextDirection,
+    score,
     soundEnabled,
+    spawnFood,
   ]);
 
-  // Handle Game Over
-  const handleGameOver = (finalLength: number, finalScore: number) => {
-    playCrashSound(soundEnabled);
-    triggerHaptic('heavy');
-    setGameState('gameover');
-
-    const isNewBest = finalScore > stats.highScore;
-    if (isNewBest && finalScore > 0) {
-      setIsNewHighScore(true);
-      playWinSound(soundEnabled);
-      fireWinnerConfetti();
-    }
-
-    onUpdateStats((prev) => ({
-      highScore: Math.max(prev.highScore, finalScore),
-      totalGames: prev.totalGames + 1,
-      highestLength: Math.max(prev.highestLength, finalLength),
-      totalApples: prev.totalApples + applesEaten,
-    }));
-  };
-
   return (
-    <div className="flex-1 flex flex-col justify-between p-3.5 relative overflow-hidden bg-slate-950">
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      className="h-full max-h-full flex-1 flex flex-col justify-between p-2 sm:p-3 relative overflow-hidden bg-slate-950 touch-none select-none overscroll-none"
+    >
       {/* Background ambient glow */}
       <div className="absolute top-1/4 -left-16 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 -right-16 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Header */}
-      <div className="w-full flex items-center justify-between z-10 pb-1">
+      <div className="w-full flex items-center justify-between z-10">
         <button
           onClick={() => {
             playClickSound(soundEnabled);
@@ -303,14 +340,28 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
           className="px-2.5 py-1 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-emerald-400 text-[11px] font-orbitron font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          <span>ARCADE HUB</span>
+          <span>HUB</span>
         </button>
 
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-[10px] font-orbitron text-emerald-300 font-bold">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#10B981]" />
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-[10px] font-orbitron text-emerald-300 font-bold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#10B981]" />
             <span>CYBER SNAKE</span>
           </div>
+
+          <button
+            onClick={() => {
+              playClickSound(soundEnabled);
+              setControlMode((prev) =>
+                prev === 'swipe' ? 'wheel' : prev === 'wheel' ? 'split-bar' : 'swipe'
+              );
+            }}
+            className="px-2 py-1 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-emerald-300 text-[10px] font-orbitron font-bold flex items-center gap-1 cursor-pointer transition-all shadow-sm"
+            title="Toggle Control Style (Swipe / D-Pad)"
+          >
+            <Sliders className="w-3 h-3 text-emerald-400" />
+            <span>{controlMode === 'swipe' ? 'SWIPE (BIG)' : controlMode === 'wheel' ? 'D-PAD' : 'BAR'}</span>
+          </button>
 
           <button
             onClick={() => {
@@ -325,38 +376,43 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
         </div>
       </div>
 
-      {/* HUD Scoreboard */}
-      <div className="grid grid-cols-3 gap-2 w-full my-1 z-10">
-        <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col items-center">
-          <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">SCORE</span>
-          <span className="text-xl font-black font-orbitron text-emerald-400 mt-0.5">
+      {/* Compact HUD Scoreboard */}
+      <div className="grid grid-cols-3 gap-1.5 w-full my-0.5 z-10">
+        <div className="p-1.5 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col items-center">
+          <span className="text-[8px] uppercase tracking-wider text-slate-400 font-bold">SCORE</span>
+          <span className="text-lg font-black font-orbitron text-emerald-400 leading-tight">
             {score}
           </span>
         </div>
 
-        <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col items-center">
-          <span className="text-[9px] uppercase tracking-wider text-amber-400 font-bold flex items-center gap-1">
+        <div className="p-1.5 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col items-center">
+          <span className="text-[8px] uppercase tracking-wider text-amber-400 font-bold flex items-center gap-0.5">
             <Trophy className="w-2.5 h-2.5" />
             BEST
           </span>
-          <span className="text-xl font-black font-orbitron text-amber-300 mt-0.5">
+          <span className="text-lg font-black font-orbitron text-amber-300 leading-tight">
             {stats.highScore}
           </span>
         </div>
 
-        <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col items-center">
-          <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">LENGTH</span>
-          <span className="text-xl font-black font-orbitron text-cyan-400 mt-0.5">
+        <div className="p-1.5 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col items-center">
+          <span className="text-[8px] uppercase tracking-wider text-slate-400 font-bold">LENGTH</span>
+          <span className="text-lg font-black font-orbitron text-cyan-400 leading-tight">
             {snake.length}
           </span>
         </div>
       </div>
 
-      {/* Main Snake Canvas/Grid Area */}
+      {/* Main Responsive Snake Canvas Area (Expands to Large Size in Swipe Mode) */}
       <div
         onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="w-full aspect-square max-w-[340px] mx-auto relative bg-slate-950/90 rounded-2xl border-2 border-emerald-500/40 shadow-[0_0_25px_rgba(16,185,129,0.25)] overflow-hidden flex items-center justify-center select-none"
+        className={`w-full aspect-square mx-auto relative bg-slate-950/90 rounded-2xl border-2 border-emerald-500/40 shadow-[0_0_25px_rgba(16,185,129,0.25)] overflow-hidden flex items-center justify-center select-none shrink-0 transition-all duration-200 ${
+          controlMode === 'swipe'
+            ? 'max-w-[min(355px,53vh)]'
+            : 'max-w-[min(270px,35vh)]'
+        }`}
       >
         {/* Subtle Cyber Grid Background */}
         <div className="absolute inset-0 grid grid-cols-16 grid-rows-16 pointer-events-none opacity-25">
@@ -364,6 +420,21 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
             <div key={i} className="border-[0.5px] border-emerald-500/20" />
           ))}
         </div>
+
+        {/* Directional Flash Visual Feedback on Zero-Lag Swipe */}
+        {activeSwipeIndicator && (
+          <div
+            className={`absolute inset-0 pointer-events-none z-25 border-2 rounded-2xl transition-all duration-100 ${
+              activeSwipeIndicator === 'UP'
+                ? 'border-t-4 border-t-emerald-300 bg-gradient-to-b from-emerald-500/20 to-transparent shadow-[0_0_20px_#10B981]'
+                : activeSwipeIndicator === 'DOWN'
+                ? 'border-b-4 border-b-emerald-300 bg-gradient-to-t from-emerald-500/20 to-transparent shadow-[0_0_20px_#10B981]'
+                : activeSwipeIndicator === 'LEFT'
+                ? 'border-l-4 border-l-emerald-300 bg-gradient-to-r from-emerald-500/20 to-transparent shadow-[0_0_20px_#10B981]'
+                : 'border-r-4 border-r-emerald-300 bg-gradient-to-l from-emerald-500/20 to-transparent shadow-[0_0_20px_#10B981]'
+            }`}
+          />
+        )}
 
         {/* Snake Body Rendering */}
         {snake.map((segment, idx) => {
@@ -381,7 +452,7 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
                 height: `${100 / GRID_SIZE}%`,
                 left: `${(segment.x * 100) / GRID_SIZE}%`,
                 top: `${(segment.y * 100) / GRID_SIZE}%`,
-                borderRadius: isHead ? '6px' : '3px',
+                borderRadius: isHead ? '5px' : '2px',
                 opacity: Math.max(0.4, 1 - (idx / snake.length) * 0.6),
               }}
             >
@@ -412,20 +483,20 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
             top: `${(food.y * 100) / GRID_SIZE + 0.5}%`,
           }}
         >
-          <div className="w-1.5 h-1.5 bg-white rounded-full" />
+          <div className="w-1 h-1 bg-white rounded-full" />
         </motion.div>
 
         {/* Start / Idle Overlay */}
         {gameState === 'idle' && (
-          <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center p-4 z-30">
-            <Sparkles className="w-10 h-10 text-emerald-400 mb-2 animate-bounce" />
-            <h3 className="text-xl font-black font-orbitron text-white text-center">CYBER SNAKE</h3>
-            <p className="text-xs text-slate-400 text-center mt-1 mb-4">
-              Swipe or tap D-Pad to collect glowing energy cores
+          <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center p-3 z-30">
+            <Sparkles className="w-8 h-8 text-emerald-400 mb-1 animate-bounce" />
+            <h3 className="text-lg font-black font-orbitron text-white text-center">CYBER SNAKE</h3>
+            <p className="text-[11px] text-slate-400 text-center mt-0.5 mb-2.5">
+              Swipe anywhere on screen with instant zero-lag response
             </p>
 
             {/* Difficulty Selector */}
-            <div className="flex items-center gap-1.5 mb-4 bg-slate-900 p-1 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-1 mb-3 bg-slate-900 p-1 rounded-xl border border-slate-800">
               {(['easy', 'medium', 'hard'] as SnakeDifficulty[]).map((d) => (
                 <button
                   key={d}
@@ -433,7 +504,7 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
                     playClickSound(soundEnabled);
                     setDifficulty(d);
                   }}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-orbitron font-bold uppercase transition-all ${
+                  className={`px-2 py-0.5 rounded-lg text-[9px] font-orbitron font-bold uppercase transition-all cursor-pointer ${
                     difficulty === d
                       ? 'bg-emerald-500 text-slate-950 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
                       : 'text-slate-400 hover:text-white'
@@ -446,9 +517,9 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
 
             <button
               onClick={startGame}
-              className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-orbitron font-black text-sm rounded-xl tracking-wider flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.5)] cursor-pointer"
+              className="px-5 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-orbitron font-black text-xs rounded-xl tracking-wider flex items-center gap-1.5 shadow-[0_0_20px_rgba(16,185,129,0.5)] cursor-pointer"
             >
-              <Play className="w-4 h-4 fill-current" />
+              <Play className="w-3.5 h-3.5 fill-current" />
               <span>START GAME</span>
             </button>
           </div>
@@ -457,11 +528,11 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
         {/* Paused Overlay */}
         {gameState === 'paused' && (
           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center z-30">
-            <Pause className="w-8 h-8 text-amber-400 mb-2" />
-            <h3 className="text-lg font-black font-orbitron text-white">PAUSED</h3>
+            <Pause className="w-7 h-7 text-amber-400 mb-1" />
+            <h3 className="text-base font-black font-orbitron text-white">PAUSED</h3>
             <button
               onClick={togglePause}
-              className="mt-3 px-5 py-2 bg-emerald-500 text-slate-950 font-orbitron font-bold text-xs rounded-xl cursor-pointer"
+              className="mt-2.5 px-4 py-1.5 bg-emerald-500 text-slate-950 font-orbitron font-bold text-xs rounded-xl cursor-pointer shadow-[0_0_15px_rgba(16,185,129,0.4)]"
             >
               RESUME
             </button>
@@ -470,30 +541,30 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
 
         {/* Game Over Overlay */}
         {gameState === 'gameover' && (
-          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4 z-30">
-            <ShieldAlert className="w-10 h-10 text-pink-500 mb-1" />
-            <h3 className="text-xl font-black font-orbitron text-white">SYSTEM CRASH</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Final Score: <strong className="text-emerald-400 font-orbitron">{score}</strong></p>
+          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-3 z-30">
+            <ShieldAlert className="w-8 h-8 text-pink-500 mb-0.5" />
+            <h3 className="text-lg font-black font-orbitron text-white">SYSTEM CRASH</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">Final Score: <strong className="text-emerald-400 font-orbitron">{score}</strong></p>
 
             {isNewHighScore && (
-              <div className="mt-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/50 text-[10px] font-orbitron font-bold text-amber-300 flex items-center gap-1 animate-pulse">
+              <div className="mt-1 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/50 text-[9px] font-orbitron font-bold text-amber-300 flex items-center gap-1 animate-pulse">
                 <Trophy className="w-3 h-3 text-amber-400" />
                 <span>NEW HIGH SCORE!</span>
               </div>
             )}
 
-            <div className="flex items-center gap-2 mt-4">
+            <div className="flex items-center gap-2 mt-3">
               <button
                 onClick={startGame}
-                className="px-4 py-2.5 bg-emerald-500 text-slate-950 font-orbitron font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.4)] cursor-pointer"
+                className="px-3.5 py-2 bg-emerald-500 text-slate-950 font-orbitron font-bold text-xs rounded-xl flex items-center gap-1 shadow-[0_0_15px_rgba(16,185,129,0.4)] cursor-pointer"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3 h-3" />
                 <span>REPLAY</span>
               </button>
 
               <button
                 onClick={onBackToHub}
-                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-orbitron font-bold text-xs rounded-xl cursor-pointer"
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-orbitron font-bold text-xs rounded-xl cursor-pointer"
               >
                 HUB
               </button>
@@ -502,69 +573,118 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
         )}
       </div>
 
-      {/* Cyber Virtual D-Pad for Mobile Touch Precision */}
-      <div className="w-full flex items-center justify-between px-2 pt-1 z-10">
-        <div className="flex flex-col gap-2">
+      {/* Bottom Area: Large Board Swipe HUD or Cyber D-Pad */}
+      {controlMode === 'swipe' ? (
+        <div className="w-full flex items-center justify-between px-2 pt-1 pb-0.5 z-10">
           <button
             onClick={() => {
               playClickSound(soundEnabled);
               setIsWallWrapping(!isWallWrapping);
             }}
-            className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-orbitron font-bold transition-all cursor-pointer ${
+            className={`px-2.5 py-1.5 rounded-xl border text-[10px] font-orbitron font-bold transition-all cursor-pointer ${
               isWallWrapping
                 ? 'bg-cyan-950 text-cyan-300 border-cyan-500/50 shadow-[0_0_10px_rgba(0,240,255,0.3)]'
-                : 'bg-slate-900 text-slate-400 border-slate-800'
+                : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
             }`}
           >
             WRAP: {isWallWrapping ? 'ON' : 'OFF'}
           </button>
 
-          {gameState === 'running' && (
-            <button
-              onClick={togglePause}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-orbitron text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-            >
-              <Pause className="w-3.5 h-3.5" />
-              <span>PAUSE</span>
-            </button>
-          )}
-        </div>
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 border border-slate-800/80 text-[10px] font-orbitron text-slate-400 font-bold shadow-inner">
+            <Hand className="w-3 h-3 text-emerald-400 animate-pulse" />
+            <span className="text-emerald-400 font-bold">SWIPE ANYWHERE</span>
+          </div>
 
-        {/* Unified Cyber Cross D-Pad with Slide/Touch Precision */}
-        <CyberDPad
-          onDirection={(dir: DPadDirection) => {
-            if (gameState === 'idle') {
-              startGame();
-            }
-            switch (dir) {
-              case 'UP':
-                changeDirection({ x: 0, y: -1 });
-                break;
-              case 'DOWN':
-                changeDirection({ x: 0, y: 1 });
-                break;
-              case 'LEFT':
-                changeDirection({ x: -1, y: 0 });
-                break;
-              case 'RIGHT':
-                changeDirection({ x: 1, y: 0 });
-                break;
-            }
-          }}
-          activeDirection={
-            nextDirection.y === -1
-              ? 'UP'
-              : nextDirection.y === 1
-              ? 'DOWN'
-              : nextDirection.x === -1
-              ? 'LEFT'
-              : 'RIGHT'
-          }
-          soundEnabled={soundEnabled}
-          theme="emerald"
-          size="md"
-        />
-      </div>
+          <div className="flex items-center gap-1.5">
+            {gameState === 'running' && (
+              <button
+                onClick={togglePause}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-orbitron text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <Pause className="w-3 h-3 text-amber-400" />
+                <span>PAUSE</span>
+              </button>
+            )}
+            {gameState !== 'running' && (
+              <button
+                onClick={startGame}
+                className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-orbitron text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-sm"
+              >
+                <RotateCcw className="w-3 h-3 text-emerald-400" />
+                <span>RESET</span>
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="w-full flex items-center justify-between px-1 pt-1 z-10">
+          <div className="flex flex-col gap-1.5">
+            <button
+              onClick={() => {
+                playClickSound(soundEnabled);
+                setIsWallWrapping(!isWallWrapping);
+              }}
+              className={`px-2 py-1 rounded-xl border text-[10px] font-orbitron font-bold transition-all cursor-pointer ${
+                isWallWrapping
+                  ? 'bg-cyan-950 text-cyan-300 border-cyan-500/50 shadow-[0_0_10px_rgba(0,240,255,0.3)]'
+                  : 'bg-slate-900 text-slate-400 border-slate-800'
+              }`}
+            >
+              WRAP: {isWallWrapping ? 'ON' : 'OFF'}
+            </button>
+
+            {gameState === 'running' && (
+              <button
+                onClick={togglePause}
+                className="px-2 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-orbitron text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <Pause className="w-3 h-3 text-amber-400" />
+                <span>PAUSE</span>
+              </button>
+            )}
+          </div>
+
+          {/* Tactile D-Pad / Split-Bar */}
+          <div className="flex-1 flex justify-center">
+            <CyberDPad
+              onDirection={(dir: DPadDirection) => {
+                if (gameState === 'idle') {
+                  startGame();
+                }
+                switch (dir) {
+                  case 'UP':
+                    changeDirection({ x: 0, y: -1 });
+                    break;
+                  case 'DOWN':
+                    changeDirection({ x: 0, y: 1 });
+                    break;
+                  case 'LEFT':
+                    changeDirection({ x: -1, y: 0 });
+                    break;
+                  case 'RIGHT':
+                    changeDirection({ x: 1, y: 0 });
+                    break;
+                }
+              }}
+              activeDirection={
+                nextDirection.y === -1
+                  ? 'UP'
+                  : nextDirection.y === 1
+                  ? 'DOWN'
+                  : nextDirection.x === -1
+                  ? 'LEFT'
+                  : 'RIGHT'
+              }
+              soundEnabled={soundEnabled}
+              theme="emerald"
+              layoutMode={controlMode as DPadLayoutMode}
+              onToggleLayoutMode={() =>
+                setControlMode((prev) => (prev === 'wheel' ? 'split-bar' : 'wheel'))
+              }
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

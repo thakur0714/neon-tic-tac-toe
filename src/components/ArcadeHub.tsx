@@ -141,7 +141,7 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
   );
 
   return (
-    <div className="w-full flex-1 flex flex-col justify-between p-3.5 sm:p-5 relative overflow-x-hidden bg-slate-950">
+    <div className="w-full flex-1 flex flex-col justify-between p-3 sm:p-4 relative overflow-y-auto overflow-x-hidden bg-slate-950">
       {/* Top Header Bar */}
       <header className="w-full flex items-center justify-between z-10 pb-3 border-b border-slate-800/80">
         <div className="flex items-center gap-2.5 min-w-0">

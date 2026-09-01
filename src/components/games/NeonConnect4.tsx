@@ -1,21 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import {
   ArrowLeft,
   Volume2,
   VolumeX,
   RotateCcw,
-  Users,
   Bot,
-  Trophy,
+  Users,
   Sparkles,
-  Play,
-  Check,
 } from 'lucide-react';
-import { Connect4Board, Connect4Cell, Connect4Player, Connect4Stats } from '../../types';
+import { Connect4Cell, Connect4Player, Connect4Stats } from '../../types';
 import {
   playClickSound,
-  playDrawSound,
   playDropSound,
   playWinSound,
   triggerHaptic,
@@ -40,125 +36,170 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
   stats,
   onUpdateStats,
 }) => {
-  const [board, setBoard] = useState<Connect4Board>(() =>
-    Array(ROWS)
-      .fill(null)
-      .map(() => Array(COLS).fill(null))
-  );
-  const [currentPlayer, setCurrentPlayer] = useState<Connect4Player>('P1');
+  const [board, setBoard] = useState<Connect4Cell[][]>(() => createEmptyBoard());
+  const [currentPlayer, setCurrentPlayer] = useState<Connect4Player>('P1'); // P1: Cyan, P2: Pink
   const [isAiMode, setIsAiMode] = useState(true);
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [winner, setWinner] = useState<Connect4Player | 'draw' | null>(null);
   const [winningCells, setWinningCells] = useState<[number, number][]>([]);
 
-  // Check victory condition
-  const checkVictory = (currentBoard: Connect4Board): { winner: Connect4Player | 'draw' | null; cells: [number, number][] } => {
-    // Check horizontal
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c <= COLS - 4; c++) {
-        const p = currentBoard[r][c];
-        if (p && p === currentBoard[r][c + 1] && p === currentBoard[r][c + 2] && p === currentBoard[r][c + 3]) {
-          return { winner: p, cells: [[r, c], [r, c + 1], [r, c + 2], [r, c + 3]] };
-        }
-      }
-    }
+  function createEmptyBoard(): Connect4Cell[][] {
+    return Array(ROWS)
+      .fill(null)
+      .map(() => Array(COLS).fill(null));
+  }
 
-    // Check vertical
-    for (let r = 0; r <= ROWS - 4; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const p = currentBoard[r][c];
-        if (p && p === currentBoard[r + 1][c] && p === currentBoard[r + 2][c] && p === currentBoard[r + 3][c]) {
-          return { winner: p, cells: [[r, c], [r + 1, c], [r + 2, c], [r + 3, c]] };
-        }
-      }
-    }
-
-    // Check diagonal (down-right)
-    for (let r = 0; r <= ROWS - 4; r++) {
-      for (let c = 0; c <= COLS - 4; c++) {
-        const p = currentBoard[r][c];
-        if (p && p === currentBoard[r + 1][c + 1] && p === currentBoard[r + 2][c + 2] && p === currentBoard[r + 3][c + 3]) {
-          return { winner: p, cells: [[r, c], [r + 1, c + 1], [r + 2, c + 2], [r + 3, c + 3]] };
-        }
-      }
-    }
-
-    // Check diagonal (up-right)
-    for (let r = 3; r < ROWS; r++) {
-      for (let c = 0; c <= COLS - 4; c++) {
-        const p = currentBoard[r][c];
-        if (p && p === currentBoard[r - 1][c + 1] && p === currentBoard[r - 2][c + 2] && p === currentBoard[r - 3][c + 3]) {
-          return { winner: p, cells: [[r, c], [r - 1, c + 1], [r - 2, c + 2], [r - 3, c + 3]] };
-        }
-      }
-    }
-
-    // Check Draw
-    const isFull = currentBoard.every((row) => row.every((cell) => cell !== null));
-    if (isFull) return { winner: 'draw', cells: [] };
-
-    return { winner: null, cells: [] };
-  };
-
-  // Find lowest available row in column
-  const getLowestEmptyRow = (col: number, currentBoard: Connect4Board): number => {
-    for (let r = ROWS - 1; r >= 0; r--) {
-      if (!currentBoard[r][col]) return r;
-    }
-    return -1;
-  };
-
-  // Reset board
   const resetGame = () => {
     playClickSound(soundEnabled);
-    triggerHaptic('light');
-    setBoard(
-      Array(ROWS)
-        .fill(null)
-        .map(() => Array(COLS).fill(null))
-    );
+    triggerHaptic('medium');
+    setBoard(createEmptyBoard());
     setCurrentPlayer('P1');
     setWinner(null);
     setWinningCells([]);
     setIsAiThinking(false);
   };
 
-  // Handle Game End
+  const getLowestEmptyRow = (col: number, currentBoard: Connect4Cell[][]): number => {
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (!currentBoard[r][col]) return r;
+    }
+    return -1;
+  };
+
+  const checkVictory = (
+    currentBoard: Connect4Cell[][]
+  ): { winner: Connect4Player | 'draw' | null; cells: [number, number][] } => {
+    // Horizontal
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c <= COLS - 4; c++) {
+        const val = currentBoard[r][c];
+        if (
+          val &&
+          val === currentBoard[r][c + 1] &&
+          val === currentBoard[r][c + 2] &&
+          val === currentBoard[r][c + 3]
+        ) {
+          return {
+            winner: val,
+            cells: [
+              [r, c],
+              [r, c + 1],
+              [r, c + 2],
+              [r, c + 3],
+            ],
+          };
+        }
+      }
+    }
+
+    // Vertical
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r <= ROWS - 4; r++) {
+        const val = currentBoard[r][c];
+        if (
+          val &&
+          val === currentBoard[r + 1][c] &&
+          val === currentBoard[r + 2][c] &&
+          val === currentBoard[r + 3][c]
+        ) {
+          return {
+            winner: val,
+            cells: [
+              [r, c],
+              [r + 1, c],
+              [r + 2, c],
+              [r + 3, c],
+            ],
+          };
+        }
+      }
+    }
+
+    // Diagonal Up-Right
+    for (let r = 3; r < ROWS; r++) {
+      for (let c = 0; c <= COLS - 4; c++) {
+        const val = currentBoard[r][c];
+        if (
+          val &&
+          val === currentBoard[r - 1][c + 1] &&
+          val === currentBoard[r - 2][c + 2] &&
+          val === currentBoard[r - 3][c + 3]
+        ) {
+          return {
+            winner: val,
+            cells: [
+              [r, c],
+              [r - 1, c + 1],
+              [r - 2, c + 2],
+              [r - 3, c + 3],
+            ],
+          };
+        }
+      }
+    }
+
+    // Diagonal Down-Right
+    for (let r = 0; r <= ROWS - 4; r++) {
+      for (let c = 0; c <= COLS - 4; c++) {
+        const val = currentBoard[r][c];
+        if (
+          val &&
+          val === currentBoard[r + 1][c + 1] &&
+          val === currentBoard[r + 2][c + 2] &&
+          val === currentBoard[r + 3][c + 3]
+        ) {
+          return {
+            winner: val,
+            cells: [
+              [r, c],
+              [r + 1, c + 1],
+              [r + 2, c + 2],
+              [r + 3, c + 3],
+            ],
+          };
+        }
+      }
+    }
+
+    // Check full / draw
+    const isFull = currentBoard.every((row) => row.every((cell) => cell !== null));
+    if (isFull) {
+      return { winner: 'draw', cells: [] };
+    }
+
+    return { winner: null, cells: [] };
+  };
+
   const handleGameEnd = useCallback(
-    (winResult: Connect4Player | 'draw') => {
-      setWinner(winResult);
-      if (winResult === 'draw') {
-        playDrawSound(soundEnabled);
-        triggerHaptic('medium');
-      } else {
+    (win: Connect4Player | 'draw') => {
+      setWinner(win);
+      if (win !== 'draw') {
         playWinSound(soundEnabled);
-        triggerHaptic('success');
         fireWinnerConfetti();
       }
 
       onUpdateStats((prev) => ({
-        winsP1: winResult === 'P1' ? prev.winsP1 + 1 : prev.winsP1,
-        winsP2: winResult === 'P2' ? prev.winsP2 + 1 : prev.winsP2,
-        draws: winResult === 'draw' ? prev.draws + 1 : prev.draws,
+        winsP1: win === 'P1' ? prev.winsP1 + 1 : prev.winsP1,
+        winsP2: win === 'P2' ? prev.winsP2 + 1 : prev.winsP2,
+        draws: win === 'draw' ? prev.draws + 1 : prev.draws,
         totalGames: prev.totalGames + 1,
       }));
     },
-    [soundEnabled, onUpdateStats]
+    [onUpdateStats, soundEnabled]
   );
 
-  // Drop Chip Handler
   const dropChip = useCallback(
     (col: number) => {
       if (winner !== null || isAiThinking) return;
 
-      const targetRow = getLowestEmptyRow(col, board);
-      if (targetRow === -1) return; // Column full
+      const row = getLowestEmptyRow(col, board);
+      if (row === -1) return; // Column is full
 
       playDropSound(soundEnabled);
       triggerHaptic('light');
 
       const newBoard = board.map((r) => [...r]);
-      newBoard[targetRow][col] = currentPlayer;
+      newBoard[row][col] = currentPlayer;
       setBoard(newBoard);
 
       const result = checkVictory(newBoard);
@@ -168,18 +209,13 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
         return;
       }
 
-      const nextPlayer: Connect4Player = currentPlayer === 'P1' ? 'P2' : 'P1';
-      setCurrentPlayer(nextPlayer);
+      const nextP: Connect4Player = currentPlayer === 'P1' ? 'P2' : 'P1';
+      setCurrentPlayer(nextP);
 
-      // AI Move Trigger
-      if (isAiMode && nextPlayer === 'P2') {
+      // AI Move turn
+      if (isAiMode && nextP === 'P2') {
         setIsAiThinking(true);
-
         setTimeout(() => {
-          // AI Logic:
-          // 1. Check if AI can win next move
-          // 2. Check if opponent can win next move & block
-          // 3. Prefer center columns
           let chosenCol = -1;
 
           for (let c = 0; c < COLS; c++) {
@@ -244,13 +280,13 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
   );
 
   return (
-    <div className="flex-1 flex flex-col justify-between p-3.5 relative overflow-hidden bg-slate-950">
+    <div className="h-full max-h-full flex-1 flex flex-col justify-between p-2 sm:p-3 relative overflow-hidden bg-slate-950">
       {/* Background ambient glow */}
       <div className="absolute top-1/4 -left-16 w-48 h-48 bg-pink-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 -right-16 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Navigation */}
-      <div className="w-full flex items-center justify-between z-10 pb-1">
+      <div className="w-full flex items-center justify-between z-10">
         <button
           onClick={() => {
             playClickSound(soundEnabled);
@@ -259,20 +295,20 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
           className="px-2.5 py-1 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-pink-400 text-[11px] font-orbitron font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          <span>ARCADE HUB</span>
+          <span>HUB</span>
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => {
               playClickSound(soundEnabled);
               setIsAiMode(!isAiMode);
               resetGame();
             }}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-orbitron text-slate-300 font-bold"
+            className="flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-orbitron text-slate-300 font-bold cursor-pointer"
           >
             {isAiMode ? <Bot className="w-3 h-3 text-pink-400" /> : <Users className="w-3 h-3 text-cyan-400" />}
-            <span>{isAiMode ? 'VS AI' : 'PASS & PLAY'}</span>
+            <span>{isAiMode ? 'VS BOT' : '2 PLAYER'}</span>
           </button>
 
           <button
@@ -289,51 +325,51 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
       </div>
 
       {/* Top HUD Scoreboard */}
-      <div className="grid grid-cols-3 gap-2 w-full my-1 z-10">
+      <div className="grid grid-cols-3 gap-1.5 w-full my-0.5 z-10">
         <div
-          className={`p-2 rounded-xl border flex flex-col items-center transition-all ${
+          className={`p-1.5 rounded-xl border flex flex-col items-center transition-all ${
             currentPlayer === 'P1' && !winner
               ? 'bg-slate-900/90 border-cyan-400 shadow-[0_0_12px_rgba(0,240,255,0.3)]'
               : 'bg-slate-900/50 border-slate-800/80 opacity-80'
           }`}
         >
-          <span className="text-[10px] font-bold text-cyan-400 flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-cyan-400" />
-            {isAiMode ? 'YOU' : 'PLAYER 1'}
+          <span className="text-[9px] font-bold text-cyan-400 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+            {isAiMode ? 'YOU' : 'P1'}
           </span>
-          <span className="text-xl font-black font-orbitron text-cyan-400 mt-0.5">
+          <span className="text-lg font-black font-orbitron text-cyan-400 leading-tight">
             {stats.winsP1}
           </span>
         </div>
 
-        <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col items-center justify-center">
-          <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">DRAWS</span>
-          <span className="text-xl font-black font-orbitron text-amber-400 mt-0.5">
+        <div className="p-1.5 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col items-center justify-center">
+          <span className="text-[8px] uppercase tracking-wider text-slate-400 font-bold">DRAWS</span>
+          <span className="text-lg font-black font-orbitron text-amber-400 leading-tight">
             {stats.draws}
           </span>
         </div>
 
         <div
-          className={`p-2 rounded-xl border flex flex-col items-center transition-all ${
+          className={`p-1.5 rounded-xl border flex flex-col items-center transition-all ${
             currentPlayer === 'P2' && !winner
               ? 'bg-slate-900/90 border-pink-500 shadow-[0_0_12px_rgba(255,0,127,0.3)]'
               : 'bg-slate-900/50 border-slate-800/80 opacity-80'
           }`}
         >
-          <span className="text-[10px] font-bold text-pink-400 flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-pink-500" />
-            {isAiMode ? 'BOT' : 'PLAYER 2'}
+          <span className="text-[9px] font-bold text-pink-400 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-pink-500" />
+            {isAiMode ? 'BOT' : 'P2'}
           </span>
-          <span className="text-xl font-black font-orbitron text-pink-400 mt-0.5">
+          <span className="text-lg font-black font-orbitron text-pink-400 leading-tight">
             {stats.winsP2}
           </span>
         </div>
       </div>
 
       {/* Turn Indicator */}
-      <div className="w-full flex justify-center z-10 mb-1">
+      <div className="w-full flex justify-center z-10">
         <div
-          className={`px-3 py-1 rounded-full text-[10px] font-orbitron font-bold flex items-center gap-1.5 border ${
+          className={`px-2.5 py-0.5 rounded-full text-[9px] font-orbitron font-bold flex items-center gap-1 border ${
             currentPlayer === 'P1'
               ? 'bg-cyan-950/80 border-cyan-500/50 text-cyan-300'
               : 'bg-pink-950/80 border-pink-500/50 text-pink-300'
@@ -342,21 +378,21 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
           <span className={`w-1.5 h-1.5 rounded-full ${currentPlayer === 'P1' ? 'bg-cyan-400' : 'bg-pink-500'} animate-pulse`} />
           <span>
             {isAiThinking
-              ? 'AI IS THINKING...'
+              ? 'AI THINKING...'
               : `${currentPlayer === 'P1' ? 'CYAN' : 'PINK'}'S TURN`}
           </span>
         </div>
       </div>
 
-      {/* 7x6 Connect 4 Grid */}
-      <div className="w-full max-w-[340px] mx-auto bg-slate-900/90 p-3 rounded-2xl border-2 border-slate-800 shadow-[0_0_25px_rgba(0,0,0,0.5)] z-10">
-        <div className="grid grid-cols-7 gap-1.5">
+      {/* 7x6 Connect 4 Grid (Scaled for Zero Mobile Scrolling & Large Touch Targets) */}
+      <div className="w-full max-w-[min(340px,46vh)] mx-auto bg-slate-900/90 p-2 rounded-2xl border-2 border-slate-800 shadow-[0_0_25px_rgba(0,0,0,0.5)] z-10 shrink-0">
+        <div className="grid grid-cols-7 gap-1">
           {Array.from({ length: COLS }).map((_, c) => (
             <button
               key={c}
               onClick={() => dropChip(c)}
               disabled={winner !== null || isAiThinking}
-              className="flex flex-col gap-1.5 p-1 rounded-xl hover:bg-slate-800/70 transition-all cursor-pointer group"
+              className="flex flex-col gap-1 p-0.5 rounded-xl hover:bg-slate-800/70 transition-all cursor-pointer group"
               aria-label={`Column ${c + 1}`}
             >
               {Array.from({ length: ROWS }).map((_, r) => {
@@ -383,7 +419,7 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
                     }`}
                   >
                     {cell && (
-                      <div className="w-2.5 h-2.5 rounded-full bg-white/40 shadow-inner" />
+                      <div className="w-2 h-2 rounded-full bg-white/40 shadow-inner" />
                     )}
                   </div>
                 );
@@ -394,18 +430,18 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
       </div>
 
       {/* Bottom Controls & Winner Alert */}
-      <div className="w-full flex items-center justify-between px-2 pt-2 z-10">
+      <div className="w-full flex items-center justify-between px-2 pt-1 z-10">
         <button
           onClick={resetGame}
-          className="px-4 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 font-orbitron font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+          className="px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 font-orbitron font-bold text-[11px] flex items-center gap-1 cursor-pointer"
         >
-          <RotateCcw className="w-3.5 h-3.5" />
+          <RotateCcw className="w-3 h-3" />
           <span>RESET</span>
         </button>
 
         {winner && (
-          <div className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-pink-500 text-slate-950 font-black font-orbitron text-xs flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,240,255,0.4)]">
-            <Sparkles className="w-3.5 h-3.5" />
+          <div className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-cyan-500 to-pink-500 text-slate-950 font-black font-orbitron text-[11px] flex items-center gap-1 shadow-[0_0_15px_rgba(0,240,255,0.4)]">
+            <Sparkles className="w-3 h-3" />
             <span>{winner === 'draw' ? 'STALEMATE!' : `${winner === 'P1' ? 'CYAN' : 'PINK'} WINS!`}</span>
           </div>
         )}
