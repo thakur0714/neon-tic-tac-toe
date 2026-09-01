@@ -1,0 +1,6 @@
+{
+  "name": "Ultimate Tic-Tac-Toe",
+  "description": "A high-energy, neon-animated mobile Tic-Tac-Toe game featuring Pass & Play, smart Minimax AI, dynamic sound effects, and confetti celebrations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
