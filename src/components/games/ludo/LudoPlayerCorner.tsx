@@ -242,7 +242,7 @@ export const LudoPlayerCorner: React.FC<LudoPlayerCornerProps> = ({
               borderColor: isCyber ? colorTheme.neonBorder : '#475569',
             }}
           >
-            {player.type === 'bot' ? (
+            {player.type === 'ai' ? (
               <Bot className="w-3 h-3" style={{ color: colorTheme.neonColor }} />
             ) : (
               <User className="w-3 h-3" style={{ color: colorTheme.neonColor }} />
