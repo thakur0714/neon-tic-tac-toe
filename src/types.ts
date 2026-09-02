@@ -125,6 +125,9 @@ export interface MultiplayerMessage {
     | 'SNAKE_GAMEOVER'
     | 'REMATCH_REQ'
     | 'REMATCH_ACCEPT'
+    | 'FLIP_COIN_REQ'
+    | 'FLIP_COIN_RESULT'
+    | 'OPPONENT_LEFT'
     | 'EMOTE'
     | 'PING'
     | 'PONG';
@@ -136,6 +139,8 @@ export interface MultiplayerMessage {
   length?: number;
   alive?: boolean;
   emote?: string;
+  coinFlip?: 'head' | 'tail';
+  coinWinner?: Player; // ✅ Winner of coin flip
   senderName?: string;
   timestamp?: number;
 }
@@ -149,4 +154,3 @@ export interface MultiplayerSession {
   latencyMs: number;
   isOpponentReady: boolean;
 }
-
