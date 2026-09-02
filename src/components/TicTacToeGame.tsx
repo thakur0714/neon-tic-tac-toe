@@ -18,7 +18,8 @@ import {
 } from '../utils/audio';
 import { fireWinnerConfetti } from '../utils/confetti';
 import { peerManager } from '../utils/peerManager';
-import { Grid, ArrowLeft, Radio, Wifi, Smile } from 'lucide-react';
+import { Grid, ArrowLeft, Radio, Wifi, AlertCircle } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface TicTacToeGameProps {
   onBackToHub: () => void;
@@ -49,6 +50,10 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
   const [onlineRole, setOnlineRole] = useState<'host' | 'client' | null>(null);
   const [latency, setLatency] = useState(0);
   const [incomingEmote, setIncomingEmote] = useState<string | null>(null);
+  const [isCoinFlipModalOpen, setIsCoinFlipModalOpen] = useState(false);
+  const [playerCoinChoice, setPlayerCoinChoice] = useState<'head' | 'tail' | null>(null);
+  const [coinFlipResult, setCoinFlipResult] = useState<Player | null>(null);
+  const [isOpponentLeftModalOpen, setIsOpponentLeftModalOpen] = useState(false);
 
   // Secondary modals
   const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
@@ -56,6 +61,7 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
 
   const aiTimeoutRef = useRef<number | null>(null);
   const rematchPendingRef = useRef(false);
+  const coinFlipSentRef = useRef(false);
 
   // Check peerManager on mount or state changes
   useEffect(() => {
@@ -65,6 +71,13 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
 
     if (isConn) {
       setScreen('game');
+      // ✅ FIX: Switch mode to PvP when online multiplayer is active
+      onUpdateConfig({ mode: 'pvp' });
+      // ✅ Show coin flip modal for first turn decision
+      if (!coinFlipSentRef.current) {
+        setIsCoinFlipModalOpen(true);
+        coinFlipSentRef.current = true;
+      }
     }
 
     const unsubMsg = peerManager.onMessage((msg) => {
@@ -86,6 +99,13 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
 
         playMoveSound(msg.player as Player, config.soundEnabled);
         triggerHaptic('light', config.hapticsEnabled);
+      } else if (msg.type === 'FLIP_COIN_REQ') {
+        // ✅ Opponent initiated coin flip
+        setIsCoinFlipModalOpen(true);
+      } else if (msg.type === 'FLIP_COIN_RESULT') {
+        // ✅ Receive coin flip result
+        setCoinFlipResult(msg.coinWinner || null);
+        setPlayerCoinChoice(null);
       } else if (msg.type === 'REMATCH_REQ') {
         // Opponent wants to play again - auto-accept
         rematchPendingRef.current = true;
@@ -95,6 +115,9 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
         // Opponent accepted our rematch request
         rematchPendingRef.current = false;
         resetGameRound();
+      } else if (msg.type === 'OPPONENT_LEFT') {
+        // ✅ Opponent left the room
+        setIsOpponentLeftModalOpen(true);
       } else if (msg.type === 'EMOTE' && msg.emote) {
         setIncomingEmote(msg.emote);
         triggerHaptic('light', config.hapticsEnabled);
@@ -106,11 +129,18 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
       setLatency(ms);
     });
 
+    const unsubStatus = peerManager.onStatus((status) => {
+      if (status === 'disconnected') {
+        setIsOpponentLeftModalOpen(true);
+      }
+    });
+
     return () => {
       unsubMsg();
       unsubLat();
+      unsubStatus();
     };
-  }, [config.soundEnabled, config.hapticsEnabled]);
+  }, [config.soundEnabled, config.hapticsEnabled, onUpdateConfig]);
 
   // Cleanup pending AI moves on unmount or reset
   useEffect(() => {
@@ -131,38 +161,49 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
 
       playResetSound(config.soundEnabled);
       const activeConfig = customConfig || config;
-      const initialPlayer = activeConfig.startingPlayer;
 
       setBoard(Array(9).fill(null));
-      setCurrentPlayer('X');
       setWinResult({ winner: null, line: null });
       setIsWinnerModalOpen(false);
       setIsAiThinking(false);
 
-      // If AI moves first
-      if (!peerManager.isConnected() && activeConfig.mode.startsWith('ai') && initialPlayer === activeConfig.aiSymbol) {
-        setIsAiThinking(true);
-        aiTimeoutRef.current = window.setTimeout(() => {
-          let move = 4; // center
-          if (activeConfig.mode === 'ai-easy') {
-            move = Math.floor(Math.random() * 9);
-          } else if (activeConfig.mode === 'ai-hard') {
-            const openings = [0, 2, 4, 6, 8];
-            move = openings[Math.floor(Math.random() * openings.length)];
-          }
+      // ✅ NEW: If online, use coin flip result or last winner for starting player
+      if (peerManager.isConnected()) {
+        if (coinFlipResult) {
+          setCurrentPlayer(coinFlipResult);
+        } else if (stats.lastWinner && stats.lastWinner !== 'draw') {
+          // Always winner goes first in rematch
+          setCurrentPlayer(stats.lastWinner as Player);
+        } else {
+          setCurrentPlayer('X');
+        }
+      } else {
+        // AI mode: respect AI settings
+        setCurrentPlayer('X');
+        if (activeConfig.mode.startsWith('ai') && activeConfig.startingPlayer === activeConfig.aiSymbol) {
+          setIsAiThinking(true);
+          aiTimeoutRef.current = window.setTimeout(() => {
+            let move = 4; // center
+            if (activeConfig.mode === 'ai-easy') {
+              move = Math.floor(Math.random() * 9);
+            } else if (activeConfig.mode === 'ai-hard') {
+              const openings = [0, 2, 4, 6, 8];
+              move = openings[Math.floor(Math.random() * openings.length)];
+            }
 
-          const freshBoard: Board = Array(9).fill(null);
-          freshBoard[move] = activeConfig.aiSymbol;
-          setBoard(freshBoard);
-          playMoveSound(activeConfig.aiSymbol, activeConfig.soundEnabled);
-          triggerHaptic('light', activeConfig.hapticsEnabled);
+            const freshBoard: Board = Array(9).fill(null);
+            freshBoard[move] = activeConfig.aiSymbol;
+            setBoard(freshBoard);
+            playMoveSound(activeConfig.aiSymbol, activeConfig.soundEnabled);
+            triggerHaptic('light', activeConfig.hapticsEnabled);
 
-          setCurrentPlayer(activeConfig.playerSymbol);
-          setIsAiThinking(false);
-        }, 500);
+            setCurrentPlayer(activeConfig.playerSymbol);
+            setIsAiThinking(false);
+          }, 500);
+        }
       }
     },
-    [config]
+    [config, stats.lastWinner, coinFlipResult]
   );
 
   // Handle game conclusion
@@ -323,6 +364,31 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
     resetGameRound();
   };
 
+  // ✅ NEW: Handle coin flip vote
+  const handleCoinFlipVote = (choice: 'head' | 'tail') => {
+    setPlayerCoinChoice(choice);
+    playClickSound(config.soundEnabled);
+
+    // Simulate coin flip
+    const coinResult = Math.random() < 0.5 ? 'head' : 'tail';
+    const winner = coinResult === choice ? (onlineRole === 'host' ? 'X' : 'O') : (onlineRole === 'host' ? 'O' : 'X');
+
+    // Send result to peer
+    peerManager.sendMessage({
+      type: 'FLIP_COIN_RESULT',
+      coinFlip: coinResult,
+      coinWinner: winner,
+    });
+
+    setCoinFlipResult(winner);
+
+    // Close modal after 2 seconds
+    setTimeout(() => {
+      setIsCoinFlipModalOpen(false);
+      resetGameRound();
+    }, 2000);
+  };
+
   const handleResetStats = () => {
     onUpdateStats({
       winsX: 0,
@@ -333,6 +399,13 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
       bestStreak: 0,
       lastWinner: null,
     });
+  };
+
+  const handleLeaveRoom = () => {
+    playClickSound(config.soundEnabled);
+    peerManager.cleanup();
+    setIsOpponentLeftModalOpen(false);
+    onBackToHub();
   };
 
   return (
@@ -462,6 +535,70 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
               setIsStatsModalOpen(true);
             }}
           />
+
+          {/* ✅ Coin Flip Modal */}
+          {isCoinFlipModalOpen && isOnlineMultiplayer && (
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm"
+            >
+              <motion.div
+                animate={{ rotateY: playerCoinChoice ? [0, 360, 720] : 0 }}
+                transition={{ duration: playerCoinChoice ? 1 : 0 }}
+                className="bg-slate-900 border border-cyan-500/50 rounded-2xl p-8 text-center max-w-sm shadow-2xl"
+              >
+                <h2 className="text-2xl font-bold font-orbitron text-cyan-400 mb-4">🪙 FLIP COIN</h2>
+                <p className="text-sm text-slate-300 mb-6">Choose HEAD or TAIL to decide first turn!</p>
+
+                {!playerCoinChoice ? (
+                  <div className="flex gap-4 justify-center">
+                    <button
+                      onClick={() => handleCoinFlipVote('head')}
+                      className="px-6 py-3 bg-cyan-500/20 border border-cyan-400 text-cyan-300 font-bold rounded-lg hover:bg-cyan-500/30 transition"
+                    >
+                      HEAD 👤
+                    </button>
+                    <button
+                      onClick={() => handleCoinFlipVote('tail')}
+                      className="px-6 py-3 bg-pink-500/20 border border-pink-400 text-pink-300 font-bold rounded-lg hover:bg-pink-500/30 transition"
+                    >
+                      TAIL 🪙
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-4xl mb-4">🪙</div>
+                )}
+
+                {coinFlipResult && (
+                  <p className="text-lg font-bold text-emerald-400 mt-4">
+                    {coinFlipResult === (onlineRole === 'host' ? 'X' : 'O') ? '🎉 You Won! First Turn' : '👤 Opponent First Turn'}
+                  </p>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* ✅ Opponent Left Modal */}
+          {isOpponentLeftModalOpen && (
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm"
+            >
+              <motion.div className="bg-slate-900 border border-rose-500/50 rounded-2xl p-8 text-center max-w-sm shadow-2xl">
+                <AlertCircle className="w-12 h-12 text-rose-400 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold font-orbitron text-rose-400 mb-2">OPPONENT LEFT</h2>
+                <p className="text-sm text-slate-300 mb-6">Your opponent has disconnected from the room.</p>
+                <button
+                  onClick={handleLeaveRoom}
+                  className="w-full px-6 py-3 bg-rose-500/20 border border-rose-400 text-rose-300 font-bold rounded-lg hover:bg-rose-500/30 transition"
+                >
+                  BACK TO ARCADE
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
         </div>
       )}
 
