@@ -26,14 +26,40 @@ interface MultiplayerLobbyModalProps {
   initialGameType?: MultiplayerGameType;
 }
 
+const MULTIPLAYER_GAMES: Array<{
+  id: MultiplayerGameType;
+  title: string;
+  badge: string;
+  theme: string;
+  borderColor: string;
+  icon: string;
+}> = [
+  {
+    id: 'ludo',
+    title: 'Neon Ludo King',
+    badge: '4-PLAYER DUEL',
+    theme: 'amber',
+    borderColor: 'border-amber-500/50',
+    icon: '🎲',
+  },
+  {
+    id: 'tictactoe',
+    title: 'Ultimate Tic-Tac-Toe',
+    badge: '1v1 DUEL',
+    theme: 'cyan',
+    borderColor: 'border-cyan-500/50',
+    icon: '⚡',
+  },
+];
+
 export const MultiplayerLobbyModal: React.FC<MultiplayerLobbyModalProps> = ({
   isOpen,
   onClose,
   onStartGame,
-  initialGameType = 'tictactoe',
+  initialGameType = 'ludo',
 }) => {
   const [tab, setTab] = useState<'create' | 'join'>('create');
-  const selectedGame: MultiplayerGameType = 'tictactoe';
+  const [selectedGame, setSelectedGame] = useState<MultiplayerGameType>(initialGameType);
   const [joinCode, setJoinCode] = useState('');
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -42,6 +68,12 @@ export const MultiplayerLobbyModal: React.FC<MultiplayerLobbyModalProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [latency, setLatency] = useState<number>(0);
   const [countdown, setCountdown] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (initialGameType) {
+      setSelectedGame(initialGameType);
+    }
+  }, [initialGameType]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -196,30 +228,44 @@ export const MultiplayerLobbyModal: React.FC<MultiplayerLobbyModalProps> = ({
             </div>
           ) : (
             <div className="mt-4 flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
-              {/* Active Online Arena Banner */}
+              {/* Active Online Game Selection List */}
               {status === 'idle' && (
-                <div className="p-3 rounded-xl bg-slate-950/80 border border-cyan-500/40 relative overflow-hidden flex items-center justify-between gap-3 shadow-inner">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-lg bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-400 shrink-0">
-                      <Grid3X3 className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold font-orbitron text-white">
-                          Ultimate Tic-Tac-Toe
-                        </span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">
-                          1v1 DUEL
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-slate-400">
-                        Synchronized Coin Toss · Turn Sync · Rematch Engine
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold shrink-0">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>ONLINE READY</span>
+                <div className="space-y-2">
+                  <span className="text-[11px] font-orbitron font-bold text-slate-300 uppercase tracking-wider block">
+                    Select Game Arena
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {MULTIPLAYER_GAMES.map((game) => {
+                      const isSelected = selectedGame === game.id;
+                      return (
+                        <button
+                          key={game.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedGame(game.id);
+                            playClickSound();
+                          }}
+                          className={`p-2.5 rounded-xl border text-left transition-all flex items-center gap-2.5 cursor-pointer relative overflow-hidden ${
+                            isSelected
+                              ? 'bg-slate-950 border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.3)] ring-1 ring-cyan-400'
+                              : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-75 hover:opacity-100'
+                          }`}
+                        >
+                          <span className="text-xl shrink-0">{game.icon}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[11px] font-bold font-orbitron text-white truncate">
+                              {game.title}
+                            </div>
+                            <span className="text-[8.5px] px-1 py-0.2 rounded font-mono font-bold uppercase text-cyan-300 bg-cyan-500/20">
+                              {game.badge}
+                            </span>
+                          </div>
+                          {isSelected && (
+                            <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0 shadow-[0_0_6px_#06B6D4]" />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { LudoColor, LudoPlayer, LudoThemeMode, LudoToken } from '../../types/ludo';
 import { LudoBoard } from './ludo/LudoBoard';
 import {
@@ -24,6 +24,9 @@ import {
   Zap,
   AlertTriangle,
   User,
+  Radio,
+  Wifi,
+  Users,
 } from 'lucide-react';
 import {
   playClickSound,
@@ -37,6 +40,9 @@ import {
   triggerHaptic,
   playWinSound,
 } from '../../utils/audio';
+import { MultiplayerLobbyModal } from '../MultiplayerLobbyModal';
+import { peerManager } from '../../utils/peerManager';
+import { MultiplayerMessage, MultiplayerStatus } from '../../types';
 
 interface NeonLudoGameProps {
   onBackToHub: () => void;
@@ -126,10 +132,53 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
     type: 'normal',
   });
 
+  // Online Multiplayer State
+  const [showMultiplayerModal, setShowMultiplayerModal] = useState(false);
+  const [onlineStatus, setOnlineStatus] = useState<MultiplayerStatus>(peerManager.getStatus());
+  const [latency, setLatency] = useState<number>(0);
+
   const isAnimatingRef = useRef(false);
 
   const currentPlayer = players.find((p) => p.color === currentTurnColor) || players[0];
   const colorTheme = LUDO_COLOR_THEMES[currentTurnColor];
+
+  // Subscribe to peerManager events for Live Online Ludo Duel
+  useEffect(() => {
+    const unsubStatus = peerManager.onStatus((st) => {
+      setOnlineStatus(st);
+      if (st === 'connected') {
+        const role = peerManager.getRole();
+        setStatusBanner({
+          text: `Online Opponent Connected! You are ${role === 'host' ? 'Host (Red)' : 'Guest (Green)'}.`,
+          type: 'bonus',
+        });
+      }
+    });
+
+    const unsubLatency = peerManager.onLatency((ms) => {
+      setLatency(ms);
+    });
+
+    const unsubMsg = peerManager.onMessage((msg: MultiplayerMessage) => {
+      if (msg.type === 'LUDO_ROLL' && msg.diceValue !== undefined) {
+        handleRollDice(msg.diceValue, false);
+      } else if (msg.type === 'LUDO_MOVE' && msg.tokenId !== undefined && msg.diceValue !== undefined) {
+        const p = players.find((pl) => pl.color === (msg.color || currentTurnColor));
+        const tok = p?.tokens.find((t) => t.id === msg.tokenId);
+        if (tok) {
+          handleExecuteTokenMove(tok, msg.diceValue, false);
+        }
+      } else if (msg.type === 'LUDO_REMATCH') {
+        handleResetMatch(false);
+      }
+    });
+
+    return () => {
+      unsubStatus();
+      unsubLatency();
+      unsubMsg();
+    };
+  }, [players, currentTurnColor]);
 
   // Helper to switch turn to next player
   const passTurnToNextPlayer = useCallback(
@@ -155,7 +204,7 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
   );
 
   // Main Dice Roll Handler
-  const handleRollDice = (forcedValue?: number) => {
+  const handleRollDice = (forcedValue?: number, broadcast: boolean = true) => {
     if (turnState !== 'waiting_roll' || isAnimatingRef.current) return;
 
     setTurnState('rolling');
@@ -166,6 +215,14 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
     setTimeout(() => {
       const rolledNumber = forcedValue !== undefined ? forcedValue : Math.floor(Math.random() * 6) + 1;
       setDiceValue(rolledNumber);
+
+      if (broadcast && peerManager.isConnected()) {
+        peerManager.sendMessage({
+          type: 'LUDO_ROLL',
+          diceValue: rolledNumber,
+          color: currentTurnColor,
+        });
+      }
 
       // Handle 3 consecutive 6s penalty
       if (rolledNumber === 6) {
@@ -209,7 +266,7 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
           type: 'normal',
         });
         setTimeout(() => {
-          handleExecuteTokenMove(movableTokens[0], rolledNumber);
+          handleExecuteTokenMove(movableTokens[0], rolledNumber, broadcast);
         }, 300);
       } else {
         // Multiple choices: player must tap glowing token
@@ -225,11 +282,20 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
   };
 
   // Move Token Execution with Smooth Hop Animation & Capture Check
-  const handleExecuteTokenMove = async (token: LudoToken, roll: number) => {
+  const handleExecuteTokenMove = async (token: LudoToken, roll: number, broadcast: boolean = true) => {
     if (isAnimatingRef.current) return;
     isAnimatingRef.current = true;
     setTurnState('animating');
     setSelectableTokenIds([]);
+
+    if (broadcast && peerManager.isConnected()) {
+      peerManager.sendMessage({
+        type: 'LUDO_MOVE',
+        tokenId: token.id,
+        diceValue: roll,
+        color: token.color,
+      });
+    }
 
     const initialStep = token.step;
 
@@ -423,7 +489,7 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
     }
   };
 
-  const handleResetMatch = () => {
+  const handleResetMatch = (broadcast: boolean = true) => {
     playClickSound(soundEnabled);
     setPlayers(createInitialPlayers());
     setCurrentTurnColor('red');
@@ -435,6 +501,12 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
       text: 'Match Reset! Red Player: Roll the dice to start.',
       type: 'normal',
     });
+
+    if (broadcast && peerManager.isConnected()) {
+      peerManager.sendMessage({
+        type: 'LUDO_REMATCH',
+      });
+    }
   };
 
   const toggleTheme = () => {
@@ -457,14 +529,31 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
           <span>HUB</span>
         </button>
 
-        <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-950 border border-amber-500/40 text-[10px] font-orbitron text-amber-300 font-bold shadow-[0_0_10px_rgba(245,158,11,0.2)]">
-          <Crown className="w-3 h-3 text-amber-400 animate-pulse" />
-          <span>NEON LUDO KING</span>
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-950 border border-amber-500/40 text-[10px] font-orbitron text-amber-300 font-bold shadow-[0_0_10px_rgba(245,158,11,0.2)]">
+            <Crown className="w-3 h-3 text-amber-400 animate-pulse" />
+            <span>NEON LUDO KING</span>
+          </div>
+
+          <button
+            onClick={() => {
+              playClickSound(soundEnabled);
+              setShowMultiplayerModal(true);
+            }}
+            className={`px-2 py-0.5 rounded-full border text-[9.5px] font-orbitron font-bold flex items-center gap-1 cursor-pointer transition whitespace-nowrap ${
+              onlineStatus === 'connected'
+                ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                : 'bg-gradient-to-r from-cyan-500/20 to-pink-500/20 border-cyan-400/60 text-cyan-300 hover:text-white'
+            }`}
+          >
+            <Radio className="w-3 h-3 text-cyan-400 animate-pulse" />
+            <span>{onlineStatus === 'connected' ? `ONLINE (${latency}ms)` : 'ONLINE DUEL'}</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-1">
           <button
-            onClick={handleResetMatch}
+            onClick={() => handleResetMatch(true)}
             title="Reset Game"
             className="p-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-red-400 cursor-pointer transition"
           >
@@ -566,6 +655,17 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
           </button>
         </div>
       </div>
+
+      {/* ONLINE MULTIPLAYER LOBBY MODAL */}
+      <MultiplayerLobbyModal
+        isOpen={showMultiplayerModal}
+        onClose={() => setShowMultiplayerModal(false)}
+        initialGameType="ludo"
+        onStartGame={() => {
+          setShowMultiplayerModal(false);
+          handleResetMatch(false);
+        }}
+      />
     </div>
   );
 };

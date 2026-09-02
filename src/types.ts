@@ -113,7 +113,7 @@ export type MultiplayerStatus =
   | 'disconnected'
   | 'error';
 
-export type MultiplayerGameType = 'tictactoe' | 'connect4' | 'snake';
+export type MultiplayerGameType = 'ludo' | 'tictactoe';
 
 export interface MultiplayerMessage {
   type:
@@ -123,6 +123,10 @@ export interface MultiplayerMessage {
     | 'MOVE_CONNECT4'
     | 'SNAKE_UPDATE'
     | 'SNAKE_GAMEOVER'
+    | 'LUDO_ROLL'
+    | 'LUDO_MOVE'
+    | 'LUDO_SYNC'
+    | 'LUDO_REMATCH'
     | 'REMATCH_REQ'
     | 'REMATCH_ACCEPT'
     | 'REMATCH_START'
@@ -149,6 +153,12 @@ export interface MultiplayerMessage {
   roundNumber?: number;
   senderName?: string;
   timestamp?: number;
+  // Ludo payload
+  color?: string;
+  diceValue?: number;
+  tokenId?: number;
+  playersState?: any;
+  turnColor?: string;
 }
 
 export interface MultiplayerSession {
