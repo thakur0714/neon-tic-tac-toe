@@ -217,6 +217,8 @@ class PeerManager {
     });
 
     this.conn.on('close', () => {
+      // ✅ FIX: Notify opponent that they disconnected
+      this.sendMessage({ type: 'OPPONENT_LEFT' });
       this.setStatus('disconnected', 'Opponent disconnected');
       this.stopHeartbeat();
     });
