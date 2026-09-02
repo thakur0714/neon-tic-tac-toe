@@ -55,6 +55,7 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
 
   const aiTimeoutRef = useRef<number | null>(null);
+  const rematchPendingRef = useRef(false);
 
   // Check peerManager on mount or state changes
   useEffect(() => {
@@ -85,7 +86,14 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
 
         playMoveSound(msg.player as Player, config.soundEnabled);
         triggerHaptic('light', config.hapticsEnabled);
-      } else if (msg.type === 'REMATCH_REQ' || msg.type === 'REMATCH_ACCEPT') {
+      } else if (msg.type === 'REMATCH_REQ') {
+        // Opponent wants to play again - auto-accept
+        rematchPendingRef.current = true;
+        peerManager.sendMessage({ type: 'REMATCH_ACCEPT' });
+        resetGameRound();
+      } else if (msg.type === 'REMATCH_ACCEPT') {
+        // Opponent accepted our rematch request
+        rematchPendingRef.current = false;
         resetGameRound();
       } else if (msg.type === 'EMOTE' && msg.emote) {
         setIncomingEmote(msg.emote);
@@ -130,10 +138,6 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
       setWinResult({ winner: null, line: null });
       setIsWinnerModalOpen(false);
       setIsAiThinking(false);
-
-      if (peerManager.isConnected()) {
-        peerManager.sendMessage({ type: 'REMATCH_ACCEPT' });
-      }
 
       // If AI moves first
       if (!peerManager.isConnected() && activeConfig.mode.startsWith('ai') && initialPlayer === activeConfig.aiSymbol) {
@@ -310,6 +314,15 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
     setTimeout(() => setIncomingEmote(null), 2000);
   };
 
+  const handlePlayAgain = () => {
+    if (isOnlineMultiplayer) {
+      // Send rematch request to peer
+      rematchPendingRef.current = true;
+      peerManager.sendMessage({ type: 'REMATCH_REQ' });
+    }
+    resetGameRound();
+  };
+
   const handleResetStats = () => {
     onUpdateStats({
       winsX: 0,
@@ -331,7 +344,7 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
             playClickSound(config.soundEnabled);
             onBackToHub();
           }}
-          className="px-2.5 py-1 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-cyan-400 text-[11px] font-orbitron font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+          className="px-2.5 py-1 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-cyan-400 text-[11px] font-orbitron font-bold flex items-center gap-1"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>ARCADE HUB</span>
@@ -439,7 +452,7 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
             winResult={winResult}
             config={config}
             stats={stats}
-            onPlayAgain={() => resetGameRound()}
+            onPlayAgain={handlePlayAgain}
             onMainMenu={() => {
               setIsWinnerModalOpen(false);
               setScreen('menu');
