@@ -53,13 +53,13 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
     {
       id: 'tictactoe' as ArcadeGameId,
       title: 'Ultimate Tic-Tac-Toe',
-      subtitle: 'Minimax AI & 2-Player Duel',
+      subtitle: 'Online 1v1 & Minimax AI Duel',
       category: 'duel',
-      tag: 'POPULAR',
+      tag: 'ONLINE 1v1 READY',
       theme: 'cyan',
       borderColor: 'border-cyan-500/40 hover:border-cyan-400',
       textColor: 'text-cyan-400',
-      badgeBg: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+      badgeBg: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 animate-pulse',
       statLabel: 'Best Streak',
       statValue: `${tttStreak} Wins`,
       iconVisual: (
@@ -70,7 +70,29 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
           <span className="text-sm font-black font-orbitron text-cyan-400 leading-none">X</span>
         </div>
       ),
-      description: 'Smart Minimax AI engine with 3 difficulty levels, Pass & Play, and neon strike animations.',
+      description: 'Live Online P2P multiplayer with synchronized coin toss & Minimax AI difficulty modes.',
+    },
+    {
+      id: 'ludo' as ArcadeGameId,
+      title: 'Neon Ludo King',
+      subtitle: '4-Player AI & Online Board Duel',
+      category: 'classic',
+      tag: 'NEW · 4 PLAYERS',
+      theme: 'amber',
+      borderColor: 'border-amber-500/40 hover:border-amber-400',
+      textColor: 'text-amber-400',
+      badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold',
+      statLabel: 'Track Engine',
+      statValue: '15x15 Grid',
+      iconVisual: (
+        <div className="w-12 h-12 rounded-xl bg-slate-950 border border-amber-500/40 grid grid-cols-2 gap-1 p-1.5 shrink-0 place-items-center">
+          <span className="w-3.5 h-3.5 rounded-full bg-red-500 shadow-[0_0_6px_#EF4444]" />
+          <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 shadow-[0_0_6px_#10B981]" />
+          <span className="w-3.5 h-3.5 rounded-full bg-cyan-500 shadow-[0_0_6px_#06B6D4]" />
+          <span className="w-3.5 h-3.5 rounded-full bg-amber-500 shadow-[0_0_6px_#F59E0B]" />
+        </div>
+      ),
+      description: '15x15 precision board with 52-tile track, 8 Safe Stars, 4 Home columns, and smooth token hops.',
     },
     {
       id: 'snake' as ArcadeGameId,

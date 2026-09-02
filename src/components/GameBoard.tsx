@@ -9,6 +9,8 @@ interface GameBoardProps {
   isAiThinking: boolean;
   disabled: boolean;
   onCellClick: (index: number) => void;
+  isMyTurn?: boolean;
+  isOnlineMultiplayer?: boolean;
 }
 
 // Coordinate centers for cells 0-8 in percentage [x, y]
@@ -31,9 +33,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   isAiThinking,
   disabled,
   onCellClick,
+  isMyTurn = true,
+  isOnlineMultiplayer = false,
 }) => {
   const winningLine = winResult.line;
   const isGameOver = winResult.winner !== null;
+  const isActionDisabled = disabled || isAiThinking || (isOnlineMultiplayer && !isMyTurn);
 
   // Compute laser strike-through line start and end
   let lineCoords = null;
@@ -72,10 +77,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             return (
               <motion.button
                 key={index}
-                whileTap={{ scale: disabled || cellValue ? 1 : 0.94 }}
+                whileTap={{ scale: isActionDisabled || cellValue ? 1 : 0.94 }}
                 onClick={() => onCellClick(index)}
-                disabled={disabled || cellValue !== null || isAiThinking}
-                className={`group relative rounded-2xl flex items-center justify-center transition-all duration-200 select-none overflow-hidden cursor-pointer transform-gpu will-change-transform ${
+                disabled={isActionDisabled || cellValue !== null}
+                className={`group relative rounded-2xl flex items-center justify-center transition-all duration-200 select-none overflow-hidden transform-gpu will-change-transform ${
+                  isActionDisabled && !cellValue ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
+                } ${
                   cellValue === null
                     ? 'bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 hover:bg-slate-900/80'
                     : 'bg-slate-950/90 border border-slate-800/90'
@@ -92,7 +99,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 {cellValue === 'O' && <NeonO isWinning={isWinningCell} />}
 
                 {/* Ghost preview on hover for empty tiles */}
-                {!cellValue && !disabled && !isAiThinking && (
+                {!cellValue && !isActionDisabled && (
                   <div className="opacity-0 group-hover:opacity-20 transition-opacity pointer-events-none scale-90">
                     {currentPlayer === 'X' ? (
                       <span className="text-4xl font-black font-orbitron text-cyan-400">X</span>

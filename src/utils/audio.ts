@@ -418,4 +418,307 @@ export function playPopSound(enabled = true) {
   }
 }
 
+/**
+ * High-pitched coin spinning sound FX
+ */
+export function playCoinSpinSound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    [1046.5, 1318.5, 1567.98, 2093].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const startTime = now + idx * 0.06;
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startTime);
+      gain.gain.setValueAtTime(0.12, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.08);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.09);
+    });
+  } catch {
+    // Safe
+  }
+}
+
+/**
+ * Coin Land / Toss Winner Ding
+ */
+export function playCoinDingSound(isWin = true, enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const freqs = isWin ? [880, 1174.66, 1760] : [587.33, 440];
+    freqs.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const startTime = now + idx * 0.09;
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, startTime);
+      gain.gain.setValueAtTime(0.18, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.22);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.25);
+    });
+  } catch {
+    // Safe
+  }
+}
+
+/**
+ * Noticeable chime when a new round / turn starts
+ */
+export function playTurnAlertSound(isMyTurn = true, enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    if (isMyTurn) {
+      osc.frequency.setValueAtTime(523.25, now);
+      osc.frequency.exponentialRampToValueAtTime(1046.5, now + 0.12);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+    } else {
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.exponentialRampToValueAtTime(330, now + 0.1);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    }
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.18);
+  } catch {
+    // Safe
+  }
+}
+
+/**
+ * Ludo 3D Dice Roll Tumbling Sound
+ */
+export function playDiceRollSound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    // Series of rapid tumbling clicks with frequency shifts
+    for (let i = 0; i < 6; i++) {
+      const startTime = now + i * 0.045;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(350 + Math.random() * 400, startTime);
+      osc.frequency.exponentialRampToValueAtTime(150 + Math.random() * 200, startTime + 0.035);
+
+      gain.gain.setValueAtTime(0.15, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.035);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.04);
+    }
+  } catch {
+    // Safe
+  }
+}
+
+/**
+ * Ludo Token Single Hop Pop Sound
+ */
+export function playTokenHopSound(stepCount = 0, enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    // Ascend pitch slightly on sequential hops
+    const baseFreq = 480 + Math.min(stepCount * 25, 400);
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(baseFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, now + 0.05);
+
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.07);
+  } catch {
+    // Safe
+  }
+}
+
+/**
+ * Ludo Token Unlock From Yard on Six (High-energy unlock fanfare)
+ */
+export function playTokenUnlockSound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const notes = [587.33, 739.99, 880, 1174.66]; // D5, F#5, A5, D6
+    notes.forEach((freq, idx) => {
+      const startTime = now + idx * 0.05;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, startTime);
+      gain.gain.setValueAtTime(0.2, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.1);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.12);
+    });
+  } catch {
+    // Safe
+  }
+}
+
+/**
+ * Ludo Token Kill / Capture Impact Sound (Satisfying strike)
+ */
+export function playTokenKillSound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    // Low punch
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(220, now);
+    osc1.frequency.exponentialRampToValueAtTime(60, now + 0.18);
+    gain1.gain.setValueAtTime(0.3, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.22);
+
+    // High energetic zap
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(880, now);
+    osc2.frequency.exponentialRampToValueAtTime(1760, now + 0.08);
+    gain2.gain.setValueAtTime(0.2, now);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now);
+    osc2.stop(now + 0.12);
+  } catch {
+    // Safe
+  }
+}
+
+/**
+ * Ludo Token Center Home Finished Chime
+ */
+export function playHomeEntrySound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const notes = [659.25, 783.99, 987.77, 1318.51]; // E5, G5, B5, E6
+    notes.forEach((freq, idx) => {
+      const startTime = now + idx * 0.06;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startTime);
+      gain.gain.setValueAtTime(0.22, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.3);
+    });
+  } catch {
+    // Safe
+  }
+}
+
+/**
+ * Triple 6 Penalty Cancel Buzzer
+ */
+export function playTripleSixCancelSound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(200, now);
+    osc.frequency.setValueAtTime(150, now + 0.1);
+
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.3);
+  } catch {
+    // Safe
+  }
+}
+
+
 

@@ -14,6 +14,8 @@ interface ScoreBoardProps {
   onToggleSound: () => void;
   onOpenStats: () => void;
   onOpenRules: () => void;
+  isOnlineMultiplayer?: boolean;
+  onlineRole?: 'host' | 'client' | null;
 }
 
 export const ScoreBoard: React.FC<ScoreBoardProps> = ({
@@ -26,11 +28,23 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
   onToggleSound,
   onOpenStats,
   onOpenRules,
+  isOnlineMultiplayer = false,
+  onlineRole = null,
 }) => {
   const isPlayerXTurn = currentPlayer === 'X';
   const isPlayerOTurn = currentPlayer === 'O';
 
+  const myToken: Player = onlineRole === 'client' ? 'O' : 'X';
+  const isMyTurn = isOnlineMultiplayer
+    ? currentPlayer === myToken
+    : config.mode.startsWith('ai')
+    ? currentPlayer === config.playerSymbol
+    : true;
+
   const getModeLabel = () => {
+    if (isOnlineMultiplayer) {
+      return 'ONLINE 1V1';
+    }
     switch (config.mode) {
       case 'pvp':
         return 'PASS & PLAY';
@@ -43,9 +57,24 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
     }
   };
 
+  const getPlayer1Label = () => {
+    if (isOnlineMultiplayer) {
+      return onlineRole === 'host' ? 'YOU (X)' : 'OPPONENT (X)';
+    }
+    if (config.mode.startsWith('ai')) {
+      return config.playerSymbol === 'X' ? 'YOU (X)' : 'AI (X)';
+    }
+    return 'PLAYER X';
+  };
+
   const getPlayer2Label = () => {
-    if (config.mode === 'pvp') return 'PLAYER O';
-    return config.mode === 'ai-hard' ? 'MINIMAX AI' : 'EASY BOT';
+    if (isOnlineMultiplayer) {
+      return onlineRole === 'client' ? 'YOU (O)' : 'OPPONENT (O)';
+    }
+    if (config.mode.startsWith('ai')) {
+      return config.playerSymbol === 'O' ? 'YOU (O)' : config.mode === 'ai-hard' ? 'MINIMAX AI' : 'EASY BOT';
+    }
+    return 'PLAYER O';
   };
 
   return (
@@ -140,8 +169,8 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
           )}
           <div className="flex items-center gap-1 text-[11px] font-bold text-slate-400">
             <User className="w-3 h-3 text-cyan-400" />
-            <span className="truncate max-w-[70px]">
-              {config.mode.startsWith('ai') && config.playerSymbol === 'X' ? 'YOU (X)' : 'PLAYER X'}
+            <span className="truncate max-w-[80px]">
+              {getPlayer1Label()}
             </span>
           </div>
           <span className="text-2xl font-black font-orbitron text-cyan-400 glow-cyan-text mt-0.5">
@@ -173,13 +202,13 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
             <div className="absolute top-1 right-1.5 w-1.5 h-1.5 rounded-full bg-pink-500 animate-ping" />
           )}
           <div className="flex items-center gap-1 text-[11px] font-bold text-slate-400">
-            {config.mode.startsWith('ai') ? (
+            {config.mode.startsWith('ai') && !isOnlineMultiplayer ? (
               <Bot className="w-3 h-3 text-pink-400" />
             ) : (
               <User className="w-3 h-3 text-pink-400" />
             )}
-            <span className="truncate max-w-[70px]">
-              {config.mode.startsWith('ai') && config.playerSymbol === 'O' ? 'YOU (O)' : getPlayer2Label()}
+            <span className="truncate max-w-[80px]">
+              {getPlayer2Label()}
             </span>
           </div>
           <span className="text-2xl font-black font-orbitron text-pink-500 glow-pink-text mt-0.5">
@@ -194,8 +223,12 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
         <motion.div
           animate={{ scale: isAiThinking ? [1, 1.03, 1] : 1 }}
           transition={{ duration: 0.8, repeat: isAiThinking ? Infinity : 0 }}
-          className={`px-4 py-1.5 rounded-full border text-xs font-orbitron font-bold flex items-center gap-2 shadow-md ${
-            isPlayerXTurn
+          className={`px-4 py-1.5 rounded-full border text-xs font-orbitron font-bold flex items-center gap-2 shadow-md transition-all ${
+            isOnlineMultiplayer
+              ? isMyTurn
+                ? 'bg-emerald-950/80 border-emerald-400/80 text-emerald-300 shadow-[0_0_15px_rgba(52,211,153,0.35)] animate-pulse'
+                : 'bg-slate-900/80 border-slate-700 text-slate-400'
+              : isPlayerXTurn
               ? 'bg-cyan-950/70 border-cyan-500/50 text-cyan-300 shadow-cyan-950/50'
               : 'bg-pink-950/70 border-pink-500/50 text-pink-300 shadow-pink-950/50'
           }`}
@@ -204,6 +237,19 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
             <>
               <Zap className="w-3.5 h-3.5 text-pink-400 animate-spin" />
               <span className="tracking-wider">AI IS CALCULATING MOVE...</span>
+            </>
+          ) : isOnlineMultiplayer ? (
+            <>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  isMyTurn ? 'bg-emerald-400 shadow-[0_0_8px_#34D399]' : 'bg-amber-400'
+                } animate-pulse`}
+              />
+              <span className="tracking-wider">
+                {isMyTurn
+                  ? `YOUR TURN — TAP A SQUARE (${myToken})`
+                  : `OPPONENT'S TURN (${myToken === 'X' ? 'O' : 'X'}) — WAITING...`}
+              </span>
             </>
           ) : (
             <>

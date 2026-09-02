@@ -14,8 +14,6 @@ import {
   AlertCircle,
   Loader2,
   Grid3X3,
-  Columns4,
-  Flame,
 } from 'lucide-react';
 import { peerManager } from '../utils/peerManager';
 import { MultiplayerGameType, MultiplayerStatus } from '../types';
@@ -35,7 +33,7 @@ export const MultiplayerLobbyModal: React.FC<MultiplayerLobbyModalProps> = ({
   initialGameType = 'tictactoe',
 }) => {
   const [tab, setTab] = useState<'create' | 'join'>('create');
-  const [selectedGame, setSelectedGame] = useState<MultiplayerGameType>(initialGameType);
+  const selectedGame: MultiplayerGameType = 'tictactoe';
   const [joinCode, setJoinCode] = useState('');
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -68,10 +66,8 @@ export const MultiplayerLobbyModal: React.FC<MultiplayerLobbyModalProps> = ({
       setLatency(ms);
     });
 
-    const unsubMsg = peerManager.onMessage((msg) => {
-      if (msg.type === 'GAME_START' && msg.gameType) {
-        setSelectedGame(msg.gameType);
-      }
+    const unsubMsg = peerManager.onMessage(() => {
+      // Message listener
     });
 
     return () => {
@@ -200,55 +196,30 @@ export const MultiplayerLobbyModal: React.FC<MultiplayerLobbyModalProps> = ({
             </div>
           ) : (
             <div className="mt-4 flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
-              {/* Game Selector */}
+              {/* Active Online Arena Banner */}
               {status === 'idle' && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 block font-orbitron">
-                    Select Game
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => {
-                        setSelectedGame('tictactoe');
-                        playClickSound();
-                      }}
-                      className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 text-center transition-all ${
-                        selectedGame === 'tictactoe'
-                          ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.25)]'
-                          : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
-                      }`}
-                    >
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-cyan-500/40 relative overflow-hidden flex items-center justify-between gap-3 shadow-inner">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-lg bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-400 shrink-0">
                       <Grid3X3 className="w-5 h-5" />
-                      <span className="text-xs font-medium">Tic Tac Toe</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedGame('connect4');
-                        playClickSound();
-                      }}
-                      className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 text-center transition-all ${
-                        selectedGame === 'connect4'
-                          ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                          : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
-                      }`}
-                    >
-                      <Columns4 className="w-5 h-5" />
-                      <span className="text-xs font-medium">Connect 4</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedGame('snake');
-                        playClickSound();
-                      }}
-                      className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 text-center transition-all ${
-                        selectedGame === 'snake'
-                          ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
-                          : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
-                      }`}
-                    >
-                      <Flame className="w-5 h-5" />
-                      <span className="text-xs font-medium">Snake Duel</span>
-                    </button>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold font-orbitron text-white">
+                          Ultimate Tic-Tac-Toe
+                        </span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">
+                          1v1 DUEL
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400">
+                        Synchronized Coin Toss · Turn Sync · Rematch Engine
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>ONLINE READY</span>
                   </div>
                 </div>
               )}

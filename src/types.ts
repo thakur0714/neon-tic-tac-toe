@@ -36,7 +36,7 @@ export interface GameConfig {
    Arcade Hub & Additional Games Types
    ========================================================================= */
 
-export type ArcadeGameId = 'hub' | 'tictactoe' | 'snake' | 'connect4' | '2048';
+export type ArcadeGameId = 'hub' | 'tictactoe' | 'ludo' | 'snake' | 'connect4' | '2048';
 
 export interface ArcadeGameInfo {
   id: ArcadeGameId;
@@ -125,7 +125,9 @@ export interface MultiplayerMessage {
     | 'SNAKE_GAMEOVER'
     | 'REMATCH_REQ'
     | 'REMATCH_ACCEPT'
+    | 'REMATCH_START'
     | 'FLIP_COIN_REQ'
+    | 'FLIP_COIN_CHOICE'
     | 'FLIP_COIN_RESULT'
     | 'OPPONENT_LEFT'
     | 'EMOTE'
@@ -140,7 +142,11 @@ export interface MultiplayerMessage {
   alive?: boolean;
   emote?: string;
   coinFlip?: 'head' | 'tail';
-  coinWinner?: Player; // ✅ Winner of coin flip
+  playerChoice?: 'head' | 'tail';
+  chosenByRole?: MultiplayerRole;
+  coinWinner?: Player; // Winner of coin flip ('X' or 'O')
+  startingPlayer?: Player; // Who will make the first move
+  roundNumber?: number;
   senderName?: string;
   timestamp?: number;
 }

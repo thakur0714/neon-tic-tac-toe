@@ -5,6 +5,7 @@ import { TicTacToeGame } from './components/TicTacToeGame';
 import { CyberSnake } from './components/games/CyberSnake';
 import { NeonConnect4 } from './components/games/NeonConnect4';
 import { Neon2048 } from './components/games/Neon2048';
+import { NeonLudoGame } from './components/games/NeonLudoGame';
 import {
   ArcadeGameId,
   Connect4Stats,
@@ -188,6 +189,15 @@ export default function App() {
           onToggleSound={handleToggleSound}
           stats={tttStats}
           onUpdateStats={setTttStats}
+        />
+      )}
+
+      {/* 2.5. Neon Ludo King */}
+      {activeGame === 'ludo' && (
+        <NeonLudoGame
+          onBackToHub={() => setActiveGame('hub')}
+          soundEnabled={soundEnabled}
+          onToggleSound={handleToggleSound}
         />
       )}
 
