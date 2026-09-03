@@ -36,7 +36,7 @@ export interface GameConfig {
    Arcade Hub & Additional Games Types
    ========================================================================= */
 
-export type ArcadeGameId = 'hub' | 'tictactoe' | 'ludo' | 'carrom' | 'snake' | 'connect4' | '2048';
+export type ArcadeGameId = 'hub' | 'tictactoe' | 'ludo' | 'carrom' | 'uno' | 'snake' | 'connect4' | '2048';
 
 export interface ArcadeGameInfo {
   id: ArcadeGameId;

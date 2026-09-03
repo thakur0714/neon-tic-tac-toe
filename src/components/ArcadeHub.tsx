@@ -120,6 +120,30 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
       description: 'Realistic Carrom board with 2D elastic collisions, dynamic striker slingshot aim, smart AI bot & Ludo King style room codes.',
     },
     {
+      id: 'uno' as ArcadeGameId,
+      title: 'Neon UNO / Card 8',
+      subtitle: 'Wild Eights & 4-Player Duel',
+      category: 'duel',
+      tag: 'NEW · CARD DUEL',
+      theme: 'pink',
+      borderColor: 'border-pink-500/40 hover:border-pink-400',
+      textColor: 'text-pink-400',
+      badgeBg: 'bg-gradient-to-r from-pink-500/20 to-purple-500/20 text-pink-300 border-pink-500/40 font-bold',
+      statLabel: 'Wild Rule',
+      statValue: 'Crazy 8',
+      iconVisual: (
+        <div className="w-12 h-12 rounded-xl bg-slate-950 border border-pink-500/40 flex items-center justify-center shrink-0 relative overflow-hidden">
+          <div className="w-5 h-8 rounded-sm bg-red-500 border border-red-300 flex items-center justify-center -rotate-12 shadow-sm font-orbitron font-black text-[9px] text-white absolute left-1">
+            8
+          </div>
+          <div className="w-5 h-8 rounded-sm bg-cyan-500 border border-cyan-200 flex items-center justify-center rotate-12 shadow-sm font-orbitron font-black text-[9px] text-slate-950 absolute right-1">
+            ★
+          </div>
+        </div>
+      ),
+      description: 'Classic UNO and Card 8 matching duel with Smart AI bots, +2/+4 attacks, and instant color switching.',
+    },
+    {
       id: 'snake' as ArcadeGameId,
       title: 'Cyber Snake 2099',
       subtitle: 'Neon Grid & Speed Boost',
@@ -212,7 +236,7 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
                 HUB
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 leading-tight">6 Neon Games · Instant Play</p>
+            <p className="text-[10px] text-slate-400 leading-tight">7 Neon Games · Instant Play</p>
           </div>
         </div>
 

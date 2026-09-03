@@ -7,6 +7,7 @@ import { NeonConnect4 } from './components/games/NeonConnect4';
 import { Neon2048 } from './components/games/Neon2048';
 import { NeonLudoGame } from './components/games/NeonLudoGame';
 import { NeonCarromGame } from './components/games/carrom/NeonCarromGame';
+import { NeonUnoGame } from './components/games/uno/NeonUnoGame';
 import {
   ArcadeGameId,
   Connect4Stats,
@@ -204,6 +205,15 @@ export default function App() {
       {/* 2.8. Neon Carrom Pool */}
       {activeGame === 'carrom' && (
         <NeonCarromGame
+          onBackToHub={() => setActiveGame('hub')}
+          soundEnabled={soundEnabled}
+          onToggleSound={handleToggleSound}
+        />
+      )}
+
+      {/* 2.9. Neon UNO / Card 8 */}
+      {activeGame === 'uno' && (
+        <NeonUnoGame
           onBackToHub={() => setActiveGame('hub')}
           soundEnabled={soundEnabled}
           onToggleSound={handleToggleSound}

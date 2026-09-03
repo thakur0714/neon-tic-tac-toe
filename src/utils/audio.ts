@@ -850,6 +850,284 @@ export function playCarromFoulSound(enabled = true) {
   } catch {}
 }
 
+/**
+ * Uno Card Play Slap Sound (Crisp, snappy card drop)
+ */
+export function playUnoCardPlaySound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(400, now);
+    osc.frequency.exponentialRampToValueAtTime(120, now + 0.05);
+
+    gain.gain.setValueAtTime(0.24, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.07);
+  } catch {}
+}
+
+/**
+ * Uno Card Draw Swoosh Sound
+ */
+export function playUnoDrawSound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(280, now);
+    osc.frequency.exponentialRampToValueAtTime(620, now + 0.07);
+
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.09);
+  } catch {}
+}
+
+/**
+ * Uno Color Switch / Wild Card Activation Chime
+ */
+export function playUnoColorSwitchSound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    [440, 554.37, 659.25, 880].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const start = now + idx * 0.04;
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0.15, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.12);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.14);
+    });
+  } catch {}
+}
+
+/**
+ * UNO Shout / 1 Card Alert Horn
+ */
+export function playUnoAlertSound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    [659.25, 880, 1318.51].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const start = now + idx * 0.06;
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0.25, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.16);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.18);
+    });
+  } catch {}
+}
+
+/**
+ * Action Penalty Zap (+2, +4, Skip)
+ */
+export function playUnoPenaltySound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(110, now + 0.14);
+
+    gain.gain.setValueAtTime(0.28, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.18);
+  } catch {}
+}
+
+/**
+ * Realistic Riffle Deck Shuffle Sound (Card split, cascade flutter & bridge finish)
+ */
+export function playUnoRiffleShuffleSound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+
+    // Step 1: Initial Deck Split Slide (0.0s - 0.5s)
+    const splitOsc = ctx.createOscillator();
+    const splitGain = ctx.createGain();
+    splitOsc.type = 'sine';
+    splitOsc.frequency.setValueAtTime(180, now);
+    splitOsc.frequency.exponentialRampToValueAtTime(320, now + 0.25);
+    splitOsc.frequency.exponentialRampToValueAtTime(110, now + 0.5);
+
+    splitGain.gain.setValueAtTime(0.09, now);
+    splitGain.gain.exponentialRampToValueAtTime(0.001, now + 0.52);
+
+    splitOsc.connect(splitGain);
+    splitGain.connect(ctx.destination);
+    splitOsc.start(now);
+    splitOsc.stop(now + 0.55);
+
+    // Step 2: 20 crisp natural card-riffle flicks (0.7s - 1.8s)
+    for (let i = 0; i < 20; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const start = now + 0.7 + i * 0.055;
+      const freq = 220 + (i % 6) * 38 + Math.random() * 25;
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, start);
+      osc.frequency.exponentialRampToValueAtTime(80, start + 0.038);
+
+      const vol = 0.13 + (i > 6 && i < 16 ? 0.06 : 0);
+      gain.gain.setValueAtTime(vol, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.042);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(start);
+      osc.stop(start + 0.045);
+    }
+
+    // Step 3: Cascade Bridge Waterfall flutter (1.85s - 2.4s)
+    for (let j = 0; j < 8; j++) {
+      const bOsc = ctx.createOscillator();
+      const bGain = ctx.createGain();
+      const bStart = now + 1.85 + j * 0.065;
+
+      bOsc.type = 'sine';
+      bOsc.frequency.setValueAtTime(360 - j * 22, bStart);
+      bOsc.frequency.exponentialRampToValueAtTime(140, bStart + 0.05);
+
+      bGain.gain.setValueAtTime(0.12, bStart);
+      bGain.gain.exponentialRampToValueAtTime(0.001, bStart + 0.055);
+
+      bOsc.connect(bGain);
+      bGain.connect(ctx.destination);
+
+      bOsc.start(bStart);
+      bOsc.stop(bStart + 0.06);
+    }
+
+    // Step 4: Deck square tap on felt (2.55s)
+    const tapOsc = ctx.createOscillator();
+    const tapGain = ctx.createGain();
+    const tapStart = now + 2.55;
+
+    tapOsc.type = 'triangle';
+    tapOsc.frequency.setValueAtTime(340, tapStart);
+    tapOsc.frequency.exponentialRampToValueAtTime(65, tapStart + 0.08);
+
+    tapGain.gain.setValueAtTime(0.22, tapStart);
+    tapGain.gain.exponentialRampToValueAtTime(0.001, tapStart + 0.09);
+
+    tapOsc.connect(tapGain);
+    tapGain.connect(ctx.destination);
+
+    tapOsc.start(tapStart);
+    tapOsc.stop(tapStart + 0.1);
+  } catch {}
+}
+
+/**
+ * Realistic Card Deal / Flying Swipe Sound (Crisp physical card snap)
+ */
+export function playUnoCardDealSound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    // 1. Friction glide whoosh
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(460, now + 0.18);
+    osc.frequency.exponentialRampToValueAtTime(140, now + 0.35);
+
+    gain.gain.setValueAtTime(0.13, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.37);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.38);
+
+    // 2. Crisp card landing snap (timed with the arrival at 0.38s)
+    const snapOsc = ctx.createOscillator();
+    const snapGain = ctx.createGain();
+    const snapStart = now + 0.38;
+
+    snapOsc.type = 'triangle';
+    snapOsc.frequency.setValueAtTime(300, snapStart);
+    snapOsc.frequency.exponentialRampToValueAtTime(75, snapStart + 0.05);
+
+    snapGain.gain.setValueAtTime(0.14, snapStart);
+    snapGain.gain.exponentialRampToValueAtTime(0.001, snapStart + 0.055);
+
+    snapOsc.connect(snapGain);
+    snapGain.connect(ctx.destination);
+
+    snapOsc.start(snapStart);
+    snapOsc.stop(snapStart + 0.06);
+  } catch {}
+}
+
+
 
 
 
