@@ -497,11 +497,13 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
             <div className="space-y-2 text-xs text-slate-300 max-h-72 overflow-y-auto pr-1 no-scrollbar font-mono">
               <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
                 <strong className="text-cyan-400 font-orbitron block mb-0.5">1. Matching Rules</strong>
-                Play a card matching the active color or number of the top discard pile.
+                Play a card matching the active color or number of the top discard pile. Can't play?
+                Draw one card, then play it or Pass.
               </div>
               <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
                 <strong className="text-amber-400 font-orbitron block mb-0.5">2. Card 8 & Wilds</strong>
-                Wild and Card 8 can be played on any card, allowing you to choose the next active color!
+                Wilds can be played on any card to choose the next color. Card 8 does the same only when
+                the Crazy Eights toggle is on.
               </div>
               <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
                 <strong className="text-pink-400 font-orbitron block mb-0.5">3. Action Cards</strong>
@@ -514,7 +516,7 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
               </div>
               <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
                 <strong className="text-emerald-400 font-orbitron block mb-0.5">4. Calling UNO!</strong>
-                When you have only 1 card left, tap the glowing <strong>UNO!</strong> button to avoid drawing a 2-card penalty!
+                The moment you're down to 1 card, tap the glowing <strong>UNO!</strong> button within a few seconds — miss the window and you draw a 2-card penalty!
               </div>
               <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
                 <strong className="text-purple-400 font-orbitron block mb-0.5">5. Multiplayer & Privacy Veil</strong>

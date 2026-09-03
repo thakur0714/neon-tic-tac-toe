@@ -5,11 +5,13 @@ import { Sparkles } from 'lucide-react';
 
 interface UnoColorPickerModalProps {
   onSelectColor: (color: UnoCardColor) => void;
+  onCancel?: () => void;
   reason?: 'wild' | 'wild4' | 'eight';
 }
 
 export const UnoColorPickerModal: React.FC<UnoColorPickerModalProps> = ({
   onSelectColor,
+  onCancel,
   reason = 'wild',
 }) => {
   const colors: { color: UnoCardColor; label: string; bg: string; border: string; glow: string; text: string }[] = [
@@ -83,6 +85,15 @@ export const UnoColorPickerModal: React.FC<UnoColorPickerModalProps> = ({
         <p className="text-[10px] text-slate-400 mt-2 font-mono">
           Game turn will continue with your chosen color.
         </p>
+
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="mt-3 text-[10px] font-orbitron font-bold text-slate-500 hover:text-slate-300 cursor-pointer transition-colors"
+          >
+            CANCEL
+          </button>
+        )}
       </motion.div>
     </div>
   );

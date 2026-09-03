@@ -13,7 +13,8 @@ import {
 export function isValidCardPlay(
   card: UnoCard,
   topCard: UnoCard | null,
-  activeColor: UnoCardColor
+  activeColor: UnoCardColor,
+  eightIsWild = false
 ): boolean {
   if (!topCard) return true;
 
@@ -22,8 +23,8 @@ export function isValidCardPlay(
     return true;
   }
 
-  // 2. Card 8 is a special wild card in Crazy Eights
-  if (card.value === 8) {
+  // 2. Card 8 is a special wild card in Crazy Eights (optional house rule)
+  if (eightIsWild && card.value === 8) {
     return true;
   }
 
@@ -46,9 +47,10 @@ export function isValidCardPlay(
 export function hasValidMoveInHand(
   hand: UnoCard[],
   topCard: UnoCard | null,
-  activeColor: UnoCardColor
+  activeColor: UnoCardColor,
+  eightIsWild = false
 ): boolean {
-  return hand.some((card) => isValidCardPlay(card, topCard, activeColor));
+  return hand.some((card) => isValidCardPlay(card, topCard, activeColor, eightIsWild));
 }
 
 /**
@@ -85,6 +87,11 @@ export function calculateHandScore(hand: UnoCard[]): number {
 /**
  * Determines whether a card requires color selection (Wild, Wild4, or Card 8).
  */
-export function isWildCard(card: UnoCard): boolean {
-  return card.color === 'wild' || card.value === 'wild' || card.value === 'wild4' || card.value === 8;
+export function isWildCard(card: UnoCard, eightIsWild = false): boolean {
+  return (
+    card.color === 'wild' ||
+    card.value === 'wild' ||
+    card.value === 'wild4' ||
+    (eightIsWild && card.value === 8)
+  );
 }

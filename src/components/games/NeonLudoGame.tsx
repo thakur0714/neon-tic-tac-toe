@@ -1,13 +1,23 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { LudoColor, LudoPlayer, LudoPlayerType, LudoThemeMode, LudoToken } from '../../types/ludo';
-import { DEFAULT_SETUP, buildPlayers, LudoSetupConfig } from '../../utils/ludoSetup';
-import { LudoSetupScreen } from './ludo/LudoSetupScreen';
-import { pickAIMove } from '../../utils/ludoAI';
-import { LudoBoard } from './ludo/LudoBoard';
+import React, { useState, useRef, useCallback, useEffect } from "react";
+import {
+  LudoColor,
+  LudoPlayer,
+  LudoPlayerType,
+  LudoThemeMode,
+  LudoToken,
+} from "../../types/ludo";
+import {
+  DEFAULT_SETUP,
+  buildPlayers,
+  LudoSetupConfig,
+} from "../../utils/ludoSetup";
+import { LudoSetupScreen } from "./ludo/LudoSetupScreen";
+import { pickAIMove } from "../../utils/ludoAI";
+import { LudoBoard } from "./ludo/LudoBoard";
 import {
   LUDO_COLOR_THEMES,
   COLOR_START_INDICES,
-} from '../../utils/ludoConstants';
+} from "../../utils/ludoConstants";
 import {
   canTokenMove,
   getSelectableTokens,
@@ -15,7 +25,7 @@ import {
   getNextTurnColor,
   checkCapture,
   willTokenReachHome,
-} from '../../utils/ludoRules';
+} from "../../utils/ludoRules";
 import {
   ArrowLeft,
   Crown,
@@ -32,8 +42,8 @@ import {
   Users,
   Maximize2,
   Minimize2,
-} from 'lucide-react';
-import { usePWAInstall } from '../../utils/usePWAInstall';
+} from "lucide-react";
+import { usePWAInstall } from "../../utils/usePWAInstall";
 import {
   playClickSound,
   playDiceRollSound,
@@ -45,9 +55,9 @@ import {
   playTurnAlertSound,
   triggerHaptic,
   playWinSound,
-} from '../../utils/audio';
-import { ludoRoomManager, LudoSnapshot } from '../../utils/ludoRoomManager';
-import { LudoOnlineModal, LudoOnlineStartInfo } from './ludo/LudoOnlineModal';
+} from "../../utils/audio";
+import { ludoRoomManager, LudoSnapshot } from "../../utils/ludoRoomManager";
+import { LudoOnlineModal, LudoOnlineStartInfo } from "./ludo/LudoOnlineModal";
 
 interface NeonLudoGameProps {
   onBackToHub: () => void;
@@ -57,10 +67,15 @@ interface NeonLudoGameProps {
 
 // Initial player state, derived from a seat config. Default = 4 local humans.
 const createInitialPlayers = (
-  seats: Record<LudoColor, LudoPlayerType> = DEFAULT_SETUP.seats
+  seats: Record<LudoColor, LudoPlayerType> = DEFAULT_SETUP.seats,
 ): LudoPlayer[] => buildPlayers(seats);
 
-type TurnState = 'waiting_roll' | 'rolling' | 'select_token' | 'animating' | 'round_done';
+type TurnState =
+  | "waiting_roll"
+  | "rolling"
+  | "select_token"
+  | "animating"
+  | "round_done";
 
 export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
   onBackToHub,
@@ -68,33 +83,37 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
   onToggleSound,
 }) => {
   const { isFullscreen, toggleFullscreen } = usePWAInstall();
-  const [theme, setTheme] = useState<LudoThemeMode>('cyber');
-  const [gameStage, setGameStage] = useState<'setup' | 'online-lobby' | 'playing'>('setup');
-  const [setupConfig, setSetupConfig] = useState<LudoSetupConfig>(DEFAULT_SETUP);
+  const [theme, setTheme] = useState<LudoThemeMode>("cyber");
+  const [gameStage, setGameStage] = useState<
+    "setup" | "online-lobby" | "playing"
+  >("setup");
+  const [setupConfig, setSetupConfig] =
+    useState<LudoSetupConfig>(DEFAULT_SETUP);
   const [players, setPlayers] = useState<LudoPlayer[]>(createInitialPlayers);
-  const [currentTurnColor, setCurrentTurnColor] = useState<LudoColor>('red');
-  const [turnState, setTurnState] = useState<TurnState>('waiting_roll');
+  const [currentTurnColor, setCurrentTurnColor] = useState<LudoColor>("red");
+  const [turnState, setTurnState] = useState<TurnState>("waiting_roll");
   const [diceValue, setDiceValue] = useState<number | null>(null);
   const [consecutiveSixes, setConsecutiveSixes] = useState<number>(0);
   const [selectableTokenIds, setSelectableTokenIds] = useState<number[]>([]);
   const [statusBanner, setStatusBanner] = useState<{
     text: string;
-    type: 'normal' | 'bonus' | 'kill' | 'warning' | 'home';
+    type: "normal" | "bonus" | "kill" | "warning" | "home";
   }>({
-    text: 'Red Player Turn: Roll the Dice to start!',
-    type: 'normal',
+    text: "Red Player Turn: Roll the Dice to start!",
+    type: "normal",
   });
 
   // Online Multiplayer State (see ludoRoomManager — host-authoritative star topology)
-  const [onlineRole, setOnlineRole] = useState<'host' | 'client' | null>(null);
+  const [onlineRole, setOnlineRole] = useState<"host" | "client" | null>(null);
   const [mySeat, setMySeat] = useState<LudoColor | null>(null);
   const [latency, setLatency] = useState<number>(0);
   const isOnline = onlineRole !== null;
-  const isHost = onlineRole === 'host';
+  const isHost = onlineRole === "host";
 
   const isAnimatingRef = useRef(false);
 
-  const currentPlayer = players.find((p) => p.color === currentTurnColor) || players[0];
+  const currentPlayer =
+    players.find((p) => p.color === currentTurnColor) || players[0];
   const colorTheme = LUDO_COLOR_THEMES[currentTurnColor];
 
   // Whose input is this client allowed to give right now?
@@ -110,17 +129,34 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
       selectableTokenIds,
       statusText: statusBanner.text,
       statusType: statusBanner.type,
-      winnerColor: turnState === 'round_done' ? currentTurnColor : null,
+      winnerColor: turnState === "round_done" ? currentTurnColor : null,
     }),
-    [players, currentTurnColor, turnState, diceValue, consecutiveSixes, selectableTokenIds, statusBanner]
+    [
+      players,
+      currentTurnColor,
+      turnState,
+      diceValue,
+      consecutiveSixes,
+      selectableTokenIds,
+      statusBanner,
+    ],
   );
 
   // HOST: push the authoritative snapshot after every settled state change.
   useEffect(() => {
     if (!isHost) return;
-    if (turnState === 'animating' || turnState === 'rolling') return;
+    if (turnState === "animating" || turnState === "rolling") return;
     ludoRoomManager.pushState(buildSnapshot());
-  }, [isHost, turnState, diceValue, currentTurnColor, selectableTokenIds, players, statusBanner, buildSnapshot]);
+  }, [
+    isHost,
+    turnState,
+    diceValue,
+    currentTurnColor,
+    selectableTokenIds,
+    players,
+    statusBanner,
+    buildSnapshot,
+  ]);
 
   // Tear down any room when leaving the Ludo screen entirely.
   useEffect(() => () => ludoRoomManager.cleanup(), []);
@@ -130,7 +166,7 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
     if (!isOnline) return;
     const unsubLat = ludoRoomManager.onLatency(setLatency);
     const unsubMsg = ludoRoomManager.onMessage((msg) => {
-      if (msg.type === 'STATE' && !isHost) {
+      if (msg.type === "STATE" && !isHost) {
         const s = msg.snapshot;
         setPlayers(s.players);
         setCurrentTurnColor(s.currentTurnColor);
@@ -139,23 +175,36 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
         setConsecutiveSixes(s.consecutiveSixes);
         setSelectableTokenIds(s.selectableTokenIds);
         setStatusBanner({ text: s.statusText, type: s.statusType as any });
-      } else if (msg.type === 'INTENT' && isHost) {
+      } else if (msg.type === "INTENT" && isHost) {
         if (msg.seat !== currentTurnColor) return; // not their turn
-        if (msg.action === 'roll') {
+        if (msg.action === "roll") {
           handleRollDice(undefined, false);
-        } else if (msg.action === 'move' && msg.tokenId != null) {
+        } else if (msg.action === "move" && msg.tokenId != null) {
           const p = players.find((pl) => pl.color === msg.seat);
           const tok = p?.tokens.find((t) => t.id === msg.tokenId);
-          if (tok && selectableTokenIds.includes(tok.id)) handleExecuteTokenMove(tok, diceValue ?? 0, false);
+          if (tok && selectableTokenIds.includes(tok.id))
+            handleExecuteTokenMove(tok, diceValue ?? 0, false);
         }
-      } else if (msg.type === 'HOST_LEFT') {
-        setStatusBanner({ text: 'Host left — room closed.', type: 'warning' });
+      } else if (msg.type === "HOST_LEFT") {
+        setStatusBanner({ text: "Host left — room closed.", type: "warning" });
         setTimeout(() => onBackToHub(), 1400);
-      } else if (msg.type === 'HELLO' && isHost && msg.name.startsWith('__left__:')) {
-        const seat = msg.name.split(':')[1] as LudoColor;
-        setPlayers((prev) => prev.map((pl) => (pl.color === seat ? { ...pl, type: 'none' as LudoPlayerType } : pl)));
-        setStatusBanner({ text: `${LUDO_COLOR_THEMES[seat].name} left the match.`, type: 'warning' });
-        if (currentTurnColor === seat) setTimeout(() => passTurnToNextPlayer('Player left.'), 600);
+      } else if (
+        msg.type === "HELLO" &&
+        isHost &&
+        msg.name.startsWith("__left__:")
+      ) {
+        const seat = msg.name.split(":")[1] as LudoColor;
+        setPlayers((prev) =>
+          prev.map((pl) =>
+            pl.color === seat ? { ...pl, type: "none" as LudoPlayerType } : pl,
+          ),
+        );
+        setStatusBanner({
+          text: `${LUDO_COLOR_THEMES[seat].name} left the match.`,
+          type: "warning",
+        });
+        if (currentTurnColor === seat)
+          setTimeout(() => passTurnToNextPlayer("Player left."), 600);
       }
     });
     return () => {
@@ -163,7 +212,14 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
       unsubMsg();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOnline, isHost, currentTurnColor, players, selectableTokenIds, diceValue]);
+  }, [
+    isOnline,
+    isHost,
+    currentTurnColor,
+    players,
+    selectableTokenIds,
+    diceValue,
+  ]);
 
   // Helper to switch turn to next player
   const passTurnToNextPlayer = useCallback(
@@ -171,7 +227,7 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
       setConsecutiveSixes(0);
       setDiceValue(null);
       setSelectableTokenIds([]);
-      setTurnState('waiting_roll');
+      setTurnState("waiting_roll");
 
       const nextCol = getNextTurnColor(currentTurnColor, players);
       setCurrentTurnColor(nextCol);
@@ -182,10 +238,10 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
         text: reason
           ? `${reason} Now ${nextTheme.name}'s turn!`
           : `${nextTheme.name}'s turn! Roll the dice.`,
-        type: 'normal',
+        type: "normal",
       });
     },
-    [currentTurnColor, players, soundEnabled]
+    [currentTurnColor, players, soundEnabled],
   );
 
   // ── CPU (AI) auto-play ────────────────────────────────────────────────
@@ -197,21 +253,34 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
       clearTimeout(aiTimerRef.current);
       aiTimerRef.current = null;
     }
-    if (gameStage !== 'playing') return;
+    if (gameStage !== "playing") return;
     if (isOnline && !isHost) return; // clients never simulate; host drives any 'ai' seat
 
     const cpu = players.find((p) => p.color === currentTurnColor);
-    if (!cpu || cpu.type !== 'ai') return;
+    if (!cpu || cpu.type !== "ai") return;
     if (isAnimatingRef.current) return;
 
-    if (turnState === 'waiting_roll') {
-      aiTimerRef.current = setTimeout(() => handleRollDice(undefined, false), 750);
-    } else if (turnState === 'select_token' && diceValue != null && selectableTokenIds.length > 0) {
+    if (turnState === "waiting_roll") {
+      aiTimerRef.current = setTimeout(
+        () => handleRollDice(undefined, false),
+        750,
+      );
+    } else if (
+      turnState === "select_token" &&
+      diceValue != null &&
+      selectableTokenIds.length > 0
+    ) {
       aiTimerRef.current = setTimeout(() => {
-        const pickedId = pickAIMove(cpu, diceValue, players, setupConfig.difficulty);
+        const pickedId = pickAIMove(
+          cpu,
+          diceValue,
+          players,
+          setupConfig.difficulty,
+        );
         const token =
-          cpu.tokens.find((t) => t.id === pickedId && selectableTokenIds.includes(t.id)) ??
-          cpu.tokens.find((t) => selectableTokenIds.includes(t.id));
+          cpu.tokens.find(
+            (t) => t.id === pickedId && selectableTokenIds.includes(t.id),
+          ) ?? cpu.tokens.find((t) => selectableTokenIds.includes(t.id));
         if (token) handleExecuteTokenMove(token, diceValue, false);
       }, 650);
     }
@@ -224,19 +293,30 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
     };
     // handlers are stable enough for this effect's transitions; re-run on state change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameStage, currentTurnColor, turnState, diceValue, selectableTokenIds, players, setupConfig.difficulty]);
+  }, [
+    gameStage,
+    currentTurnColor,
+    turnState,
+    diceValue,
+    selectableTokenIds,
+    players,
+    setupConfig.difficulty,
+  ]);
 
   // Main Dice Roll Handler
   const handleRollDice = (forcedValue?: number, broadcast: boolean = true) => {
-    if (turnState !== 'waiting_roll' || isAnimatingRef.current) return;
+    if (turnState !== "waiting_roll" || isAnimatingRef.current) return;
 
-    setTurnState('rolling');
+    setTurnState("rolling");
     playDiceRollSound(soundEnabled);
-    triggerHaptic('light');
+    triggerHaptic("light");
 
     // Simulate 3D dice roll duration
     setTimeout(() => {
-      const rolledNumber = forcedValue !== undefined ? forcedValue : Math.floor(Math.random() * 6) + 1;
+      const rolledNumber =
+        forcedValue !== undefined
+          ? forcedValue
+          : Math.floor(Math.random() * 6) + 1;
       setDiceValue(rolledNumber);
       void broadcast; // online sync is push-based via ludoRoomManager.pushState (host only)
 
@@ -247,13 +327,13 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
 
         if (nextSixCount >= 3) {
           playTripleSixCancelSound(soundEnabled);
-          triggerHaptic('heavy');
+          triggerHaptic("heavy");
           setStatusBanner({
             text: `⚠️ TRIPLE 6 PENALTY! 3 sixes in a row cancels turn for ${colorTheme.name}.`,
-            type: 'warning',
+            type: "warning",
           });
           setTimeout(() => {
-            passTurnToNextPlayer('Triple 6 penalty!');
+            passTurnToNextPlayer("Triple 6 penalty!");
           }, 1200);
           return;
         }
@@ -268,7 +348,7 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
         // No moves possible
         setStatusBanner({
           text: `Rolled ${rolledNumber}. No legal moves available for ${colorTheme.name}.`,
-          type: 'normal',
+          type: "normal",
         });
         setTimeout(() => {
           passTurnToNextPlayer();
@@ -276,10 +356,10 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
       } else if (movableTokens.length === 1) {
         // Auto-move single eligible token
         setSelectableTokenIds([movableTokens[0].id]);
-        setTurnState('select_token');
+        setTurnState("select_token");
         setStatusBanner({
           text: `Rolled ${rolledNumber}! Auto-moving the only available token...`,
-          type: 'normal',
+          type: "normal",
         });
         setTimeout(() => {
           handleExecuteTokenMove(movableTokens[0], rolledNumber, broadcast);
@@ -287,21 +367,25 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
       } else {
         // Multiple choices: player must tap glowing token
         setSelectableTokenIds(movableTokens.map((t) => t.id));
-        setTurnState('select_token');
+        setTurnState("select_token");
         setStatusBanner({
           text: `Rolled ${rolledNumber}! Select one of your ${movableTokens.length} highlighted tokens to move.`,
-          type: 'normal',
+          type: "normal",
         });
-        triggerHaptic('medium');
+        triggerHaptic("medium");
       }
     }, 450);
   };
 
   // Move Token Execution with Smooth Hop Animation & Capture Check
-  const handleExecuteTokenMove = async (token: LudoToken, roll: number, broadcast: boolean = true) => {
+  const handleExecuteTokenMove = async (
+    token: LudoToken,
+    roll: number,
+    broadcast: boolean = true,
+  ) => {
     if (isAnimatingRef.current) return;
     isAnimatingRef.current = true;
-    setTurnState('animating');
+    setTurnState("animating");
     setSelectableTokenIds([]);
     void broadcast; // online sync is push-based via ludoRoomManager.pushState (host only)
 
@@ -310,7 +394,7 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
     // 1. If unlocking from Yard (step -1 to step 0)
     if (initialStep === -1 && roll === 6) {
       playTokenUnlockSound(soundEnabled);
-      triggerHaptic('medium');
+      triggerHaptic("medium");
 
       setPlayers((prev) =>
         prev.map((pl) =>
@@ -325,11 +409,11 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
                         isInYard: false,
                         isHome: false,
                       }
-                    : t
+                    : t,
                 ),
               }
-            : pl
-        )
+            : pl,
+        ),
       );
 
       // Check capture on starting tile
@@ -339,7 +423,7 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
 
       if (victims.length > 0) {
         playTokenKillSound(soundEnabled);
-        triggerHaptic('heavy');
+        triggerHaptic("heavy");
         capturedBonus = true;
         setPlayers((prev) =>
           prev.map((pl) => {
@@ -355,20 +439,20 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
                       isInYard: true,
                       isHome: false,
                     }
-                  : t
+                  : t,
               ),
             };
-          })
+          }),
         );
       }
 
       setStatusBanner({
         text: `🚀 Token unlocked to Start! ${colorTheme.name} gets a BONUS ROLL for rolling 6!`,
-        type: 'bonus',
+        type: "bonus",
       });
 
       isAnimatingRef.current = false;
-      setTurnState('waiting_roll');
+      setTurnState("waiting_roll");
       return;
     }
 
@@ -384,11 +468,11 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
             ? {
                 ...pl,
                 tokens: pl.tokens.map((t) =>
-                  t.id === token.id ? { ...t, step: stepVal } : t
+                  t.id === token.id ? { ...t, step: stepVal } : t,
                 ),
               }
-            : pl
-        )
+            : pl,
+        ),
       );
 
       playTokenHopSound(1, soundEnabled);
@@ -402,7 +486,7 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
     if (reachedHomeBonus) {
       // Reached Center Home (Victory point)
       playHomeEntrySound(soundEnabled);
-      triggerHaptic('success');
+      triggerHaptic("success");
       setPlayers((prev) =>
         prev.map((pl) =>
           pl.color === token.color
@@ -410,27 +494,27 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
                 ...pl,
                 tokensHome: pl.tokensHome + 1,
                 tokens: pl.tokens.map((t) =>
-                  t.id === token.id ? { ...t, step: 56, isHome: true } : t
+                  t.id === token.id ? { ...t, step: 56, isHome: true } : t,
                 ),
               }
-            : pl
-        )
+            : pl,
+        ),
       );
       setStatusBanner({
         text: `🌟 TOKEN HOME! ${colorTheme.name} scores 1 token! BONUS ROLL awarded!`,
-        type: 'home',
+        type: "home",
       });
     } else {
       // Check capture on final track tile
       const capturedVictims = checkCapture(finalStep, token.color, players);
       if (capturedVictims.length > 0) {
         playTokenKillSound(soundEnabled);
-        triggerHaptic('heavy');
+        triggerHaptic("heavy");
         captureBonus = true;
 
         setStatusBanner({
           text: `💥 CAPTURE! ${colorTheme.name} sent ${capturedVictims.length} opponent token(s) back to base! BONUS ROLL!`,
-          type: 'kill',
+          type: "kill",
         });
 
         setPlayers((prev) =>
@@ -447,10 +531,10 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
                       isInYard: true,
                       isHome: false,
                     }
-                  : t
+                  : t,
               ),
             };
-          })
+          }),
         );
       }
     }
@@ -463,12 +547,12 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
 
     if (updatedHomeCount >= 4) {
       playWinSound(soundEnabled);
-      triggerHaptic('success');
+      triggerHaptic("success");
       setStatusBanner({
         text: `🏆 VICTORY! ${colorTheme.name.toUpperCase()} HAS WON THE MATCH!`,
-        type: 'home',
+        type: "home",
       });
-      setTurnState('round_done');
+      setTurnState("round_done");
       isAnimatingRef.current = false;
       return;
     }
@@ -480,14 +564,14 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
     isAnimatingRef.current = false;
 
     if (hasBonusTurn) {
-      setTurnState('waiting_roll');
-      let bonusReason = 'Rolled a 6!';
-      if (captureBonus) bonusReason = 'Opponent Token Captured!';
-      if (reachedHomeBonus) bonusReason = 'Token Reached Home!';
+      setTurnState("waiting_roll");
+      let bonusReason = "Rolled a 6!";
+      if (captureBonus) bonusReason = "Opponent Token Captured!";
+      if (reachedHomeBonus) bonusReason = "Token Reached Home!";
 
       setStatusBanner({
         text: `⚡ BONUS TURN! (${bonusReason}) Roll again!`,
-        type: 'bonus',
+        type: "bonus",
       });
       playTurnAlertSound(true, soundEnabled);
     } else {
@@ -506,43 +590,53 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
       ludoRoomManager.reopenLobby();
       setOnlineRole(null);
       setMySeat(null);
-      setGameStage('online-lobby');
+      setGameStage("online-lobby");
       return;
     }
     setPlayers(createInitialPlayers(setupConfig.seats));
-    setCurrentTurnColor('red');
-    setTurnState('waiting_roll');
+    setCurrentTurnColor("red");
+    setTurnState("waiting_roll");
     setDiceValue(null);
     setConsecutiveSixes(0);
     setSelectableTokenIds([]);
     setStatusBanner({
-      text: 'Match Reset! Red Player: Roll the dice to start.',
-      type: 'normal',
+      text: "Match Reset! Red Player: Roll the dice to start.",
+      type: "normal",
     });
   };
 
   const handleStartGame = (config: LudoSetupConfig) => {
     setSetupConfig(config);
-    if (config.mode === 'online') {
-      setGameStage('online-lobby');
+    if (config.mode === "online") {
+      setGameStage("online-lobby");
       return;
     }
     setPlayers(createInitialPlayers(config.seats));
-    setCurrentTurnColor('red');
-    setTurnState('waiting_roll');
+    setCurrentTurnColor("red");
+    setTurnState("waiting_roll");
     setDiceValue(null);
     setConsecutiveSixes(0);
     setSelectableTokenIds([]);
-    setStatusBanner({ text: 'Red Player Turn: Roll the Dice to start!', type: 'normal' });
-    setGameStage('playing');
+    setStatusBanner({
+      text: "Red Player Turn: Roll the Dice to start!",
+      type: "normal",
+    });
+    setGameStage("playing");
   };
 
   const handleOnlineEnterGame = (info: LudoOnlineStartInfo) => {
     const filled = new Set(info.seats.map((s) => s.color));
-    const seats = (['red', 'green', 'yellow', 'blue'] as LudoColor[]).reduce((acc, color) => {
-      acc[color] = !filled.has(color) ? 'none' : color === info.mySeat ? 'human' : 'online';
-      return acc;
-    }, {} as Record<LudoColor, LudoPlayerType>);
+    const seats = (["red", "green", "yellow", "blue"] as LudoColor[]).reduce(
+      (acc, color) => {
+        acc[color] = !filled.has(color)
+          ? "none"
+          : color === info.mySeat
+            ? "human"
+            : "online";
+        return acc;
+      },
+      {} as Record<LudoColor, LudoPlayerType>,
+    );
 
     const built = createInitialPlayers(seats).map((p) => {
       const s = info.seats.find((x) => x.color === p.color);
@@ -552,21 +646,24 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
     setOnlineRole(info.role);
     setMySeat(info.mySeat);
     setPlayers(built);
-    setCurrentTurnColor('red');
-    setTurnState('waiting_roll');
+    setCurrentTurnColor("red");
+    setTurnState("waiting_roll");
     setDiceValue(null);
     setConsecutiveSixes(0);
     setSelectableTokenIds([]);
-    setStatusBanner({ text: 'Online match started! Red rolls first.', type: 'bonus' });
-    setGameStage('playing');
+    setStatusBanner({
+      text: "Online match started! Red rolls first.",
+      type: "bonus",
+    });
+    setGameStage("playing");
   };
 
   const toggleTheme = () => {
     playClickSound(soundEnabled);
-    setTheme((prev) => (prev === 'cyber' ? 'classic' : 'cyber'));
+    setTheme((prev) => (prev === "cyber" ? "classic" : "cyber"));
   };
 
-  if (gameStage === 'setup') {
+  if (gameStage === "setup") {
     return (
       <LudoSetupScreen
         onStart={handleStartGame}
@@ -576,14 +673,14 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
     );
   }
 
-  if (gameStage === 'online-lobby') {
+  if (gameStage === "online-lobby") {
     return (
       <LudoOnlineModal
         open
         playerCount={setupConfig.playerCount}
         onBack={() => {
           ludoRoomManager.cleanup();
-          setGameStage('setup');
+          setGameStage("setup");
         }}
         onEnterGame={handleOnlineEnterGame}
       />
@@ -623,10 +720,16 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
         <div className="flex items-center gap-1">
           <button
             onClick={toggleFullscreen}
-            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen (Hide URL Bar)'}
+            title={
+              isFullscreen ? "Exit Fullscreen" : "Fullscreen (Hide URL Bar)"
+            }
             className="p-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-cyan-400 cursor-pointer transition"
           >
-            {isFullscreen ? <Minimize2 className="w-3 h-3 text-cyan-400" /> : <Maximize2 className="w-3 h-3" />}
+            {isFullscreen ? (
+              <Minimize2 className="w-3 h-3 text-cyan-400" />
+            ) : (
+              <Maximize2 className="w-3 h-3" />
+            )}
           </button>
           <button
             onClick={() => handleResetMatch(true)}
@@ -644,10 +747,14 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
           </button>
           <button
             onClick={onToggleSound}
-            title={soundEnabled ? 'Mute Sound' : 'Unmute Sound'}
+            title={soundEnabled ? "Mute Sound" : "Unmute Sound"}
             className="p-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-cyan-400 cursor-pointer transition"
           >
-            {soundEnabled ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
+            {soundEnabled ? (
+              <Volume2 className="w-3 h-3" />
+            ) : (
+              <VolumeX className="w-3 h-3" />
+            )}
           </button>
         </div>
       </div>
@@ -657,23 +764,33 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
         <LudoBoard
           players={players}
           currentTurnColor={currentTurnColor}
-          turnState={turnState === 'round_done' ? 'animating' : turnState}
+          turnState={turnState === "round_done" ? "animating" : turnState}
           diceValue={diceValue}
           consecutiveSixes={consecutiveSixes}
           selectableTokenIds={selectableTokenIds}
           onTokenClick={(token) => {
-            if (currentPlayer.type === 'ai' || !myTurn) return;
-            if (turnState !== 'select_token' || !selectableTokenIds.includes(token.id) || !diceValue) return;
+            if (currentPlayer.type === "ai" || !myTurn) return;
+            if (
+              turnState !== "select_token" ||
+              !selectableTokenIds.includes(token.id) ||
+              !diceValue
+            )
+              return;
             if (isOnline && !isHost) {
-              ludoRoomManager.sendIntent('move', token.id);
+              ludoRoomManager.sendIntent("move", token.id);
               return;
             }
             handleExecuteTokenMove(token, diceValue);
           }}
           onRollDice={() => {
-            if (currentPlayer.type === 'ai' || !myTurn || turnState !== 'waiting_roll') return;
+            if (
+              currentPlayer.type === "ai" ||
+              !myTurn ||
+              turnState !== "waiting_roll"
+            )
+              return;
             if (isOnline && !isHost) {
-              ludoRoomManager.sendIntent('roll');
+              ludoRoomManager.sendIntent("roll");
               return;
             }
             handleRollDice();
@@ -687,20 +804,28 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
         {/* Real-time Status Alert Banner */}
         <div
           className={`flex-1 px-2.5 py-1 rounded-lg border text-[10px] font-semibold flex items-center justify-between shadow-inner transition-all overflow-hidden ${
-            statusBanner.type === 'bonus'
-              ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
-              : statusBanner.type === 'warning'
-              ? 'bg-amber-950/80 border-amber-500 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
-              : statusBanner.type === 'home'
-              ? 'bg-cyan-950/80 border-cyan-400 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-              : 'bg-slate-950/90 border-slate-800 text-slate-300'
+            statusBanner.type === "bonus"
+              ? "bg-emerald-950/80 border-emerald-500 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+              : statusBanner.type === "warning"
+                ? "bg-amber-950/80 border-amber-500 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]"
+                : statusBanner.type === "home"
+                  ? "bg-cyan-950/80 border-cyan-400 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.3)]"
+                  : "bg-slate-950/90 border-slate-800 text-slate-300"
           }`}
         >
           <div className="flex items-center gap-1.5 truncate">
-            {statusBanner.type === 'bonus' && <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-bounce" />}
-            {statusBanner.type === 'warning' && <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
-            {statusBanner.type === 'home' && <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
-            {statusBanner.type === 'normal' && <Sparkles className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
+            {statusBanner.type === "bonus" && (
+              <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-bounce" />
+            )}
+            {statusBanner.type === "warning" && (
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            )}
+            {statusBanner.type === "home" && (
+              <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            )}
+            {statusBanner.type === "normal" && (
+              <Sparkles className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            )}
             <span className="truncate">{statusBanner.text}</span>
           </div>
           <span
@@ -716,10 +841,10 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
 
         {/* Turn Controls */}
         <div className="flex items-center gap-1 shrink-0">
-          {(!isOnline || (isHost && currentPlayer.type !== 'human')) && (
+          {(!isOnline || (isHost && currentPlayer.type !== "human")) && (
             <button
-              onClick={() => passTurnToNextPlayer('Manual Skip')}
-              disabled={turnState === 'animating'}
+              onClick={() => passTurnToNextPlayer("Manual Skip")}
+              disabled={turnState === "animating"}
               title="Skip Turn"
               className="px-1.5 py-1 rounded text-[9px] font-orbitron font-bold bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 cursor-pointer disabled:opacity-40 transition"
             >

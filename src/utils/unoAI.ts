@@ -50,11 +50,12 @@ export function decideAIMove(
   topCard: UnoCard | null,
   activeColor: UnoCardColor,
   nextPlayerCardCount?: number,
-  difficulty: UnoDifficulty = 'pro'
+  difficulty: UnoDifficulty = 'pro',
+  eightIsWild = false
 ): AIDecision {
   // 1. Gather all legally playable cards
   const playableCards = hand.filter((card) =>
-    isValidCardPlay(card, topCard, activeColor)
+    isValidCardPlay(card, topCard, activeColor, eightIsWild)
   );
 
   if (playableCards.length === 0) {
@@ -64,7 +65,7 @@ export function decideAIMove(
   // ROOKIE LEVEL: Casual, random choices among legal cards
   if (difficulty === 'rookie') {
     const randomCard = playableCards[Math.floor(Math.random() * playableCards.length)];
-    const chosenColor = isWildCard(randomCard)
+    const chosenColor = isWildCard(randomCard, eightIsWild)
       ? PRIMARY_COLORS[Math.floor(Math.random() * PRIMARY_COLORS.length)]
       : undefined;
     return {
@@ -80,14 +81,27 @@ export function decideAIMove(
   );
 
   const regularCards = playableCards.filter(
-    (c) => typeof c.value === 'number' && c.value !== 8 && c.color !== 'wild'
+    (c) =>
+      typeof c.value === 'number' &&
+      !(eightIsWild && c.value === 8) &&
+      c.color !== 'wild'
   );
 
-  const wildCards = playableCards.filter((c) => isWildCard(c));
+  const wildCards = playableCards.filter((c) => isWildCard(c, eightIsWild));
 
-  // CYBER MASTER LEVEL: Ruthlessly attack when opponents are low on cards
-  if (difficulty === 'master' || (nextPlayerCardCount !== undefined && nextPlayerCardCount <= 2)) {
-    // If next player is dangerously close to winning (<= 2 cards), crush them with penalties
+  const colorCounts = hand.reduce((acc, c) => {
+    if (c.color !== 'wild') acc[c.color] = (acc[c.color] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Go aggressive only when it actually matters: an opponent is about to win,
+  // or a Master bot is in its own endgame and wants to close out fast.
+  const opponentAboutToWin =
+    nextPlayerCardCount !== undefined && nextPlayerCardCount <= 2;
+  const masterEndgame = difficulty === 'master' && hand.length <= 3;
+
+  if (opponentAboutToWin || masterEndgame) {
+    // Crush with penalties / turn denial before they can play
     const wildDrawFour = wildCards.find((c) => c.value === 'wild4');
     if (wildDrawFour) {
       return {
@@ -98,50 +112,48 @@ export function decideAIMove(
     }
 
     const drawTwo = actionDisruptCards.find((c) => c.value === 'draw2');
-    if (drawTwo) {
-      return { action: 'play', card: drawTwo };
-    }
+    if (drawTwo) return { action: 'play', card: drawTwo };
 
     const skipCard = actionDisruptCards.find((c) => c.value === 'skip');
-    if (skipCard) {
-      return { action: 'play', card: skipCard };
-    }
+    if (skipCard) return { action: 'play', card: skipCard };
 
     const reverseCard = actionDisruptCards.find((c) => c.value === 'reverse');
-    if (reverseCard) {
-      return { action: 'play', card: reverseCard };
-    }
+    if (reverseCard) return { action: 'play', card: reverseCard };
   }
 
-  // Regular cards: Play card matching the color bot has most of in hand
+  // Otherwise: conserve Wilds, shed points, and keep the dominant color.
+  // 1. Regular number cards first — prefer the dominant color, then the
+  //    highest face value so we are not left holding expensive cards.
   if (regularCards.length > 0) {
-    const colorCounts = hand.reduce((acc, c) => {
-      if (c.color !== 'wild') acc[c.color] = (acc[c.color] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
     let bestRegular = regularCards[0];
-    let highestCount = -1;
-
+    let bestScore = -1;
     for (const card of regularCards) {
-      const count = colorCounts[card.color] || 0;
-      if (count > highestCount) {
-        highestCount = count;
+      const colorWeight = (colorCounts[card.color] || 0) * 10;
+      const valueWeight = typeof card.value === 'number' ? card.value : 0;
+      const score = colorWeight + valueWeight;
+      if (score > bestScore) {
+        bestScore = score;
         bestRegular = card;
       }
     }
-
     return { action: 'play', card: bestRegular };
   }
 
-  // Action cards
+  // 2. Action cards (Skip / Reverse / +2) — disrupt without burning a Wild.
   if (actionDisruptCards.length > 0) {
-    return { action: 'play', card: actionDisruptCards[0] };
+    const pref =
+      actionDisruptCards.find((c) => c.value === 'draw2') ||
+      actionDisruptCards.find((c) => c.value === 'skip') ||
+      actionDisruptCards[0];
+    return { action: 'play', card: pref };
   }
 
-  // Wild cards (Wild, Wild Draw 4, or Card 8)
+  // 3. Wilds last — plain Wild (or Card 8) before spending a Wild Draw 4.
   if (wildCards.length > 0) {
-    const chosenWild = wildCards.find((c) => c.value !== 'wild4') || wildCards[0];
+    const chosenWild =
+      wildCards.find((c) => c.value === 'wild' || c.value === 8) ||
+      wildCards.find((c) => c.value !== 'wild4') ||
+      wildCards[0];
     return {
       action: 'play',
       card: chosenWild,

@@ -9,8 +9,11 @@ interface UnoCardViewProps {
   isSelected?: boolean;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'player';
   onClick?: () => void;
+  disabled?: boolean;
   className?: string;
   badgeLabel?: string;
+  /** When true, number 8 cards act as wilds (Crazy Eights house rule) and show a badge. */
+  eightIsWild?: boolean;
 }
 
 const COLOR_STYLES: Record<
@@ -121,9 +124,12 @@ export const UnoCardView: React.FC<UnoCardViewProps> = React.memo(({
   isSelected = false,
   size = 'md',
   onClick,
+  disabled = false,
   className = '',
   badgeLabel,
+  eightIsWild = false,
 }) => {
+  const handleClick = disabled ? undefined : onClick;
   const sizeStyles = SIZE_CONFIG[size];
 
   // Render Face Down Card (Deck or Opponents' hands)
@@ -212,8 +218,10 @@ export const UnoCardView: React.FC<UnoCardViewProps> = React.memo(({
 
   return (
     <div
-      onClick={onClick}
-      className={`relative ${sizeStyles.width} ${sizeStyles.height} ${sizeStyles.rounded} ${sizeStyles.padding} ${theme.bg} border ${theme.border} select-none transition-all duration-150 ${onClick ? 'cursor-pointer active:scale-95' : ''} ${
+      onClick={handleClick}
+      className={`relative ${sizeStyles.width} ${sizeStyles.height} ${sizeStyles.rounded} ${sizeStyles.padding} ${theme.bg} border ${theme.border} select-none transition-all duration-150 ${handleClick ? 'cursor-pointer active:scale-95' : ''} ${
+        disabled ? 'opacity-60' : ''
+      } ${
         isSelected ? '-translate-y-2 sm:-translate-y-3 z-30 shadow-lg scale-105 ring-2 ring-white' : ''
       } ${
         isPlayable && !isSelected ? 'ring-2 ring-cyan-300 ring-offset-1 ring-offset-slate-950 animate-pulse hover:-translate-y-1' : ''
@@ -244,7 +252,7 @@ export const UnoCardView: React.FC<UnoCardViewProps> = React.memo(({
       </div>
 
       {/* Optional Card 8 / Wild Crown Label */}
-      {card.value === 8 && (
+      {card.value === 8 && eightIsWild && (
         <span className="absolute -top-1.5 -right-1 px-1 py-0.2 rounded bg-amber-400 text-slate-950 font-orbitron font-black text-[7px] shadow-sm tracking-tighter">
           CRAZY 8
         </span>

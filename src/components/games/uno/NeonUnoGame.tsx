@@ -109,6 +109,13 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
   const [actionNotification, setActionNotification] = useState<string>('Match color or number!');
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
 
+  // A local human who just reached 1 card must tap UNO! before the grace window ends
+  const [unoPendingPlayerId, setUnoPendingPlayerId] = useState<string | null>(null);
+  const unoPendingRef = useRef<string | null>(null);
+  useEffect(() => {
+    unoPendingRef.current = unoPendingPlayerId;
+  }, [unoPendingPlayerId]);
+
   // Dynamic Hand container width for zero-shift, perfectly fitted responsive fanning
   const handContainerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(360);
@@ -141,7 +148,9 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
   useEffect(() => {
     if (playType !== 'online') return;
     const unsub = unoRoomManager.onLatency((lat) => setOnlineLatency(lat));
-    return () => unsub();
+    return () => {
+      unsub();
+    };
   }, [playType]);
 
   // Top discard card reference
@@ -251,6 +260,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       if (newHand.length === 0) {
         finalWinner = currentP;
         nextStatus = 'game-over';
+        setUnoPendingPlayerId(null);
         setWinner(currentP);
         setGameStatus('game-over');
         playWinSound(soundEnabled);
@@ -272,10 +282,9 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
         return;
       }
 
-      // 1 card left alert
+      // 1 card left alert (UNO! enforcement handled after penalty draws below)
       if (newHand.length === 1) {
         playUnoAlertSound(soundEnabled);
-        notification = `⚡ ${currentP.name} has UNO! (1 card remaining)`;
       }
 
       // Update discard pile
@@ -319,7 +328,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
         nextStep = 2;
         playUnoPenaltySound(soundEnabled);
         notification = `${currentP.name} played +4 WILD! Color is ${newColor.toUpperCase()}`;
-      } else if (isWildCard(card)) {
+      } else if (isWildCard(card, cardEightWild)) {
         notification = `${currentP.name} changed color to ${newColor.toUpperCase()}!`;
       }
 
@@ -345,13 +354,44 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
         );
       }
 
+      // ── UNO! enforcement ──────────────────────────────────────────────
+      // Player is now down to a single card and must announce "UNO!".
+      if (newHand.length === 1) {
+        if (currentP.type === 'ai') {
+          const remembers =
+            Math.random() <
+            (difficulty === 'master' ? 0.97 : difficulty === 'pro' ? 0.8 : 0.35);
+          if (remembers) {
+            notification = `📣 ${currentP.name} calls UNO!`;
+          } else {
+            // AI forgot — immediate +2 penalty
+            let currentDiscard = [...newDiscardPile];
+            if (currentDraw.length < 2) {
+              const replenished = replenishDrawPile(currentDraw, currentDiscard);
+              currentDraw = replenished.drawPile;
+              setDiscardPile(replenished.discardPile);
+            }
+            const forgotCards = currentDraw.splice(0, 2);
+            updatedPlayers = updatedPlayers.map((p) =>
+              p.id === currentP.id ? { ...p, hand: [...p.hand, ...forgotCards] } : p
+            );
+            notification = `😅 ${currentP.name} forgot to call UNO! +2 penalty`;
+          }
+        } else {
+          // Human — must tap the UNO! button before the grace window ends
+          setUnoPendingPlayerId(currentP.id);
+          notification = `⚡ ${currentP.name} has UNO! Tap UNO! now or risk +2`;
+        }
+      }
+
+      setDrawPile(currentDraw);
       setPlayers(updatedPlayers);
       setHasDrawnThisTurn(false);
       setCurrentTurnIndex(nextIndex);
       setActionNotification(notification);
 
       // Pass & Play privacy screen handoff
-      if (playType === 'pass-and-play' && privacyVeilEnabled && nextStatus !== 'game-over') {
+      if (playType === 'pass-and-play' && privacyVeilEnabled) {
         setShowPrivacyVeil(true);
       }
 
@@ -376,9 +416,56 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       soundEnabled,
       playType,
       privacyVeilEnabled,
+      cardEightWild,
+      difficulty,
       broadcastHostSnapshot,
     ]
   );
+
+  /**
+   * Add penalty cards to a specific player (used for the "forgot to call UNO!" rule).
+   */
+  const applyUnoPenalty = useCallback(
+    (playerId: string, message: string) => {
+      let d = [...drawPile];
+      if (d.length < 2) {
+        const replenished = replenishDrawPile(d, [...discardPile]);
+        d = replenished.drawPile;
+      }
+      const taken = d.splice(0, 2);
+      setDrawPile(d);
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === playerId ? { ...p, hand: [...p.hand, ...taken] } : p
+        )
+      );
+      setActionNotification(message);
+      playUnoPenaltySound(soundEnabled);
+    },
+    [drawPile, discardPile, soundEnabled]
+  );
+
+  /**
+   * Grace window: a local human who reached 1 card has a few seconds to tap UNO!
+   * before an automatic +2 penalty is applied.
+   */
+  useEffect(() => {
+    if (!unoPendingPlayerId) return;
+    const timer = setTimeout(() => {
+      if (unoPendingRef.current) {
+        applyUnoPenalty(unoPendingRef.current, '⚠️ Forgot to call UNO! +2 penalty');
+        setUnoPendingPlayerId(null);
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [unoPendingPlayerId, applyUnoPenalty]);
+
+  // Drop a pending UNO! obligation once that player is no longer sitting on one card
+  useEffect(() => {
+    if (!unoPendingPlayerId) return;
+    const pending = players.find((p) => p.id === unoPendingPlayerId);
+    if (!pending || pending.hand.length !== 1) setUnoPendingPlayerId(null);
+  }, [players, unoPendingPlayerId]);
 
   /**
    * Start a new Game with selected configuration (vs-ai or pass-and-play)
@@ -435,6 +522,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
     setGameStatus('playing');
     setWinner(null);
     setHasDrawnThisTurn(false);
+    setUnoPendingPlayerId(null);
     setActionNotification(
       `Game started! ${initialTopCard.color.toUpperCase()} ${initialTopCard.value} leads.`
     );
@@ -493,6 +581,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       setGameStatus('playing');
       setWinner(null);
       setHasDrawnThisTurn(false);
+      setUnoPendingPlayerId(null);
       setActionNotification('Online Match Live! Good luck!');
       setIsShufflingDealing(true);
 
@@ -588,7 +677,9 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       }
     });
 
-    return () => unsub();
+    return () => {
+      unsub();
+    };
   }, [
     playType,
     onlineRole,
@@ -612,14 +703,18 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
   const handleHumanPlayCard = (card: UnoCard) => {
     if (!isHumanTurn) return;
 
-    if (!isValidCardPlay(card, topCard, currentDisplayColor)) {
+    if (!isValidCardPlay(card, topCard, currentDisplayColor, cardEightWild)) {
       triggerHaptic('medium');
-      setActionNotification('❌ Invalid card! Must match color, number, or be a Wild / Card 8.');
+      setActionNotification(
+        cardEightWild
+          ? '❌ Invalid card! Must match color, number, or be a Wild / Card 8.'
+          : '❌ Invalid card! Must match color, number, or be a Wild.'
+      );
       return;
     }
 
-    // Wild or Card 8 prompt color picker modal
-    if (isWildCard(card)) {
+    // Wild (or Card 8 when the house rule is on) prompts color picker modal
+    if (isWildCard(card, cardEightWild)) {
       setPendingCardForColor(card);
       setGameStatus('color-picking');
       return;
@@ -654,6 +749,12 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
   const handleDrawCard = () => {
     if (!isHumanTurn) return;
 
+    // Official rule: draw exactly one card per turn, then play it or pass.
+    if (hasDrawnThisTurn) {
+      setActionNotification('You already drew — play the card or tap Pass Turn.');
+      return;
+    }
+
     playUnoDrawSound(soundEnabled);
     triggerHaptic('light');
 
@@ -682,10 +783,10 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
     setPlayers(updated);
     setHasDrawnThisTurn(true);
 
-    if (isValidCardPlay(drawnCard, topCard, activeColor)) {
+    if (isValidCardPlay(drawnCard, topCard, activeColor, cardEightWild)) {
       setActionNotification(`Drawn card (${drawnCard.color} ${drawnCard.value}) is playable!`);
     } else {
-      setActionNotification('Card drawn. Tap Pass or draw again.');
+      setActionNotification('Card drawn — not playable. Tap Pass Turn.');
     }
 
     if (playType === 'online' && onlineRole === 'host') {
@@ -741,9 +842,20 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
     triggerHaptic('success');
     if (playType === 'online' && onlineRole === 'client') {
       unoRoomManager.sendIntent({ action: 'call_uno' });
-    } else {
-      setActionNotification(`📣 ${players[currentTurnIndex]?.name || 'YOU'} CALLED UNO! (Protected)`);
+      return;
     }
+
+    // Clear a pending penalty if this player really is down to one card
+    if (unoPendingPlayerId) {
+      const pending = players.find((p) => p.id === unoPendingPlayerId);
+      if (pending && pending.hand.length === 1) {
+        setUnoPendingPlayerId(null);
+        setActionNotification(`📣 ${pending.name} called UNO! Safe.`);
+        return;
+      }
+    }
+
+    setActionNotification(`📣 ${players[currentTurnIndex]?.name || 'YOU'} called UNO!`);
   };
 
   /**
@@ -772,7 +884,8 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
           topCard,
           activeColor,
           nextPlayerHandCount,
-          difficulty
+          difficulty,
+          cardEightWild
         );
 
         if (decision.action === 'play' && decision.card) {
@@ -793,8 +906,8 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
           const drawn = currentDraw.shift();
           if (drawn) {
             setDrawPile(currentDraw);
-            if (isValidCardPlay(drawn, topCard, activeColor)) {
-              const aiChosenColor = isWildCard(drawn) ? 'red' : undefined;
+            if (isValidCardPlay(drawn, topCard, activeColor, cardEightWild)) {
+              const aiChosenColor = isWildCard(drawn, cardEightWild) ? 'red' : undefined;
               setPlayers((prev) =>
                 prev.map((p, idx) =>
                   idx === currentTurnIndex ? { ...p, hand: [...p.hand, drawn] } : p
@@ -873,7 +986,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       ? players[currentTurnIndex]?.hand || []
       : players[0]?.hand || [];
 
-  const humanCanPlayAny = hasValidMoveInHand(myHand, topCard, currentDisplayColor);
+  const humanCanPlayAny = hasValidMoveInHand(myHand, topCard, currentDisplayColor, cardEightWild);
 
   // Player positions for rendering opponents
   let displayOpponents: Array<{
@@ -1175,7 +1288,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
             <div className="relative flex flex-col items-center justify-center">
               {topCard ? (
                 <div className="scale-100 sm:scale-110">
-                  <UnoCardView card={topCard} disabled />
+                  <UnoCardView card={topCard} disabled eightIsWild={cardEightWild} />
                 </div>
               ) : (
                 <div className="w-14 h-20 sm:w-16 sm:h-24 rounded-xl border-2 border-dashed border-slate-800 flex items-center justify-center text-slate-600 text-xs">
@@ -1249,9 +1362,9 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
             {/* UNO Call Button */}
             <button
               onClick={handleCallUno}
-              disabled={!isHumanTurn}
+              disabled={!isHumanTurn && !unoPendingPlayerId}
               className={`px-3 py-1 rounded-xl font-orbitron font-black text-xs tracking-wider border cursor-pointer transition-all ${
-                myHand.length <= 2
+                unoPendingPlayerId || myHand.length <= 2
                   ? 'bg-gradient-to-r from-red-600 to-amber-500 border-red-400 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] animate-pulse'
                   : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-400'
               }`}
@@ -1285,7 +1398,8 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
 
               return myHand.map((card, i) => {
                 const isHovered = hoveredCardId === card.id;
-                const isPlayable = isHumanTurn && isValidCardPlay(card, topCard, currentDisplayColor);
+                const isPlayable =
+                  isHumanTurn && isValidCardPlay(card, topCard, currentDisplayColor, cardEightWild);
                 const leftPos = startX + i * step;
 
                 return (
@@ -1307,6 +1421,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
                       onClick={() => handleHumanPlayCard(card)}
                       isPlayable={isPlayable}
                       disabled={!isHumanTurn}
+                      eightIsWild={cardEightWild}
                     />
                   </div>
                 );
