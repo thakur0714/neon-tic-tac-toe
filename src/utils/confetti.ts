@@ -36,3 +36,6 @@ export function fireWinnerConfetti() {
   });
 }
 
+export const triggerConfetti = fireWinnerConfetti;
+
+

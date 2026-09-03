@@ -1,6 +1,6 @@
 {
   "name": "Ultimate Tic-Tac-Toe",
-  "description": "High-energy Cyber Arcade Game Center featuring Neon Ludo King (4-Player AI & Online Duel), Ultimate Tic-Tac-Toe with Minimax AI, Cyber Snake 2099, Neon Connect 4, and Neon 2048.",
+  "description": "High-energy Cyber Arcade Game Center featuring Neon Carrom Pool (2D Physics, Smart AI & Online Room Duel), Neon Ludo King (4-Player AI & Online Duel), Ultimate Tic-Tac-Toe with Minimax AI, Cyber Snake 2099, Neon Connect 4, and Neon 2048.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

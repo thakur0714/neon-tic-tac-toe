@@ -87,6 +87,28 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
       description: '15x15 precision board with 52-tile track, 8 Safe Stars, 4 Home columns, and smooth token hops.',
     },
     {
+      id: 'carrom' as ArcadeGameId,
+      title: 'Neon Carrom Pool',
+      subtitle: '2D Physics & Online Room Duel',
+      category: 'classic',
+      tag: 'NEW · ONLINE 1v1',
+      theme: 'cyan',
+      borderColor: 'border-cyan-500/40 hover:border-cyan-400',
+      textColor: 'text-cyan-400',
+      badgeBg: 'bg-gradient-to-r from-cyan-500/20 to-amber-500/20 text-cyan-300 border-cyan-500/40 font-bold',
+      statLabel: 'Engine',
+      statValue: '2D Physics',
+      iconVisual: (
+        <div className="w-12 h-12 rounded-xl bg-slate-950 border border-amber-500/40 flex items-center justify-center shrink-0 relative overflow-hidden">
+          <div className="w-8 h-8 rounded-md border border-amber-600/60 bg-amber-950/40 flex items-center justify-center">
+            <span className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_#EF4444]" />
+          </div>
+          <span className="absolute bottom-1 right-1 w-2.5 h-2.5 rounded-full bg-cyan-400 border border-cyan-200" />
+        </div>
+      ),
+      description: 'Realistic Carrom board with 2D elastic collisions, dynamic striker slingshot aim, smart AI bot & Ludo King style room codes.',
+    },
+    {
       id: 'snake' as ArcadeGameId,
       title: 'Cyber Snake 2099',
       subtitle: 'Neon Grid & Speed Boost',

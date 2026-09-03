@@ -194,7 +194,7 @@ export const Neon2048: React.FC<Neon2048Props> = ({
 
         triggerHaptic(gainedScore > 0 ? 'medium' : 'light');
         if (gainedScore > 0) {
-          playMergeSound(soundEnabled);
+          playMergeSound(gainedScore, soundEnabled);
         }
 
         const maxTile = getMaxTile(boardWithTile);
@@ -212,7 +212,7 @@ export const Neon2048: React.FC<Neon2048Props> = ({
         onUpdateStats((prev) => ({
           highScore: Math.max(prev.highScore, newScore),
           totalGames: over ? prev.totalGames + 1 : prev.totalGames,
-          maxTileReached: Math.max(prev.maxTileReached, maxTile),
+          bestTile: Math.max(prev.bestTile || 0, maxTile),
         }));
       }
     },

@@ -36,7 +36,7 @@ export interface GameConfig {
    Arcade Hub & Additional Games Types
    ========================================================================= */
 
-export type ArcadeGameId = 'hub' | 'tictactoe' | 'ludo' | 'snake' | 'connect4' | '2048';
+export type ArcadeGameId = 'hub' | 'tictactoe' | 'ludo' | 'carrom' | 'snake' | 'connect4' | '2048';
 
 export interface ArcadeGameInfo {
   id: ArcadeGameId;
@@ -44,7 +44,7 @@ export interface ArcadeGameInfo {
   subtitle: string;
   badge: string;
   icon: string;
-  themeColor: 'cyan' | 'pink' | 'emerald' | 'amber' | 'purple';
+  themeColor: 'cyan' | 'pink' | 'emerald' | 'amber' | 'purple' | 'orange';
   description: string;
   modes: string[];
 }

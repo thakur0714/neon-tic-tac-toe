@@ -161,9 +161,9 @@ export const CyberSnake: React.FC<CyberSnakeProps> = ({
 
       onUpdateStats((prev) => ({
         highScore: Math.max(prev.highScore, finalScore),
-        totalApplesEaten: prev.totalApplesEaten + applesEaten,
+        totalApples: (prev.totalApples || 0) + applesEaten,
         totalGames: prev.totalGames + 1,
-        longestSnake: Math.max(prev.longestSnake, finalLength),
+        highestLength: Math.max(prev.highestLength || 0, finalLength),
       }));
     },
     [applesEaten, onUpdateStats, soundEnabled, stats.highScore]

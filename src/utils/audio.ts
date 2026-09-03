@@ -720,5 +720,136 @@ export function playTripleSixCancelSound(enabled = true) {
   }
 }
 
+/**
+ * Carrom Striker impulse sound (snappy wooden flick)
+ */
+export function playCarromStrikeSound(power = 0.7, enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'triangle';
+    const baseFreq = 280 + power * 240;
+    osc.frequency.setValueAtTime(baseFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(70, now + 0.08);
+
+    const volume = Math.min(0.35, 0.12 + power * 0.22);
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.1);
+  } catch {}
+}
+
+/**
+ * Carrom Disc-to-disc or disc-to-cushion wooden clack
+ */
+export function playCarromClackSound(intensity = 0.5, enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800 + Math.random() * 200, now);
+    osc.frequency.exponentialRampToValueAtTime(320, now + 0.035);
+
+    const volume = Math.min(0.25, 0.06 + intensity * 0.15);
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.05);
+  } catch {}
+}
+
+/**
+ * Carrom Pocket Drop sound (satisfying deep resonant thud into net pocket)
+ */
+export function playCarromPocketSound(isQueen = false, enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    if (isQueen) {
+      // Shimmer chord for Queen pocket
+      [523.25, 659.25, 783.99].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + i * 0.04);
+        gain.gain.setValueAtTime(0.18, now + i * 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.2);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + i * 0.04);
+        osc.stop(now + i * 0.04 + 0.22);
+      });
+    } else {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(140, now + 0.12);
+
+      gain.gain.setValueAtTime(0.28, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.16);
+    }
+  } catch {}
+}
+
+/**
+ * Carrom Foul buzzer sound (e.g. striker pocketed)
+ */
+export function playCarromFoulSound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(180, now);
+    osc.frequency.setValueAtTime(120, now + 0.12);
+
+    gain.gain.setValueAtTime(0.22, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.28);
+  } catch {}
+}
+
+
 
 
