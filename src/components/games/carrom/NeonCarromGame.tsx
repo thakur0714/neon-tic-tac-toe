@@ -12,7 +12,10 @@ import {
   Crown,
   HelpCircle,
   SlidersHorizontal,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
+import { usePWAInstall } from '../../../utils/usePWAInstall';
 import {
   CarromAIDifficulty,
   CarromGameMode,
@@ -65,6 +68,7 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
   const [aiDifficulty, setAiDifficulty] = useState<CarromAIDifficulty>('medium');
   const [isOnlineModalOpen, setIsOnlineModalOpen] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
+  const { isFullscreen, toggleFullscreen } = usePWAInstall();
 
   // Board & Pieces State
   const [pieces, setPieces] = useState<CarromPiece[]>(() => createInitialPieces());
@@ -175,7 +179,7 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
     setIsAiming(true);
     setIsMoving(false);
     setWinner(null);
-    setStatusMessage('Match started! Strike when ready.');
+    setStatusMessage('Your turn! Pull back on striker to aim forward & release.');
     setTurnTimer(25);
     setGameStage('playing');
   }, []);
@@ -194,7 +198,7 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
     setIsAiming(true);
     setIsMoving(false);
     setWinner(null);
-    setStatusMessage('New Game! Player 1 (White) begins.');
+    setStatusMessage('Your turn! Pull back on striker to aim forward & release.');
     setPlayer1((p) => ({ ...p, score: 0 }));
     setPlayer2((p) => ({ ...p, score: 0 }));
     setTurnTimer(25);
@@ -447,7 +451,7 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
                   <strong>Striker Placement:</strong> Slide striker across your baseline. It must not overlap any coin on board.
                 </li>
                 <li>
-                  <strong>Aim & Power:</strong> Touch and drag striker backwards (slingshot) or use the bottom power meter to strike!
+                  <strong>Pull-Back Slingshot Aim:</strong> Touch and pull the striker backward (away from coins) to aim forward! Releasing fires the strike. Your finger will never block the target coins.
                 </li>
                 <li>
                   <strong>Disc Pool Mode:</strong> Pocket all 9 of your assigned coins (White vs Black) to win.
@@ -527,6 +531,14 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
 
         {/* Quick Tools */}
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="p-1.5 rounded-xl text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer"
+            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen (Hide URL Bar)'}
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4 text-cyan-400" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
           <button
             type="button"
             onClick={() => setShowRulesModal(true)}

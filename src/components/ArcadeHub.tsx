@@ -9,9 +9,18 @@ import {
   Sparkles,
   ChevronRight,
   Info,
+  Maximize2,
+  Minimize2,
+  Download,
+  Smartphone,
+  Share2,
+  PlusSquare,
+  X,
 } from 'lucide-react';
 import { ArcadeGameId } from '../types';
 import { playClickSound, triggerHaptic } from '../utils/audio';
+import { PWAInstallBanner } from './PWAInstallBanner';
+import { usePWAInstall } from '../utils/usePWAInstall';
 
 interface ArcadeHubProps {
   onSelectGame: (gameId: ArcadeGameId) => void;
@@ -34,6 +43,8 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'duel' | 'arcade'>('all');
   const [showHubInfo, setShowHubInfo] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const { isFullscreen, toggleFullscreen, isInstalled, isInstallable, install, isIOS } = usePWAInstall();
 
   const handleGameClick = (gameId: ArcadeGameId) => {
     playClickSound(soundEnabled);
@@ -183,66 +194,79 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
   );
 
   return (
-    <div className="w-full h-full flex-1 flex flex-col p-3 sm:p-4 relative overflow-hidden bg-slate-950">
-      {/* Top Header Bar */}
-      <header className="shrink-0 w-full flex items-center justify-between z-10 pb-2.5 border-b border-slate-800/80">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-pink-500 p-0.5 flex items-center justify-center shadow-[0_0_15px_rgba(0,240,255,0.35)] shrink-0">
+    <div className="w-full h-full flex-1 flex flex-col p-2.5 sm:p-4 relative overflow-hidden bg-slate-950">
+      {/* Top Header Bar - Clean, spacious, no clipping */}
+      <header className="shrink-0 w-full flex items-center justify-between z-10 pb-2 border-b border-slate-800/80">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500 to-pink-500 p-0.5 flex items-center justify-center shadow-[0_0_12px_rgba(0,240,255,0.3)] shrink-0">
             <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-              <Gamepad2 className="w-4.5 h-4.5 text-cyan-400" />
+              <Gamepad2 className="w-4 h-4 text-cyan-400" />
             </div>
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex flex-col">
             <div className="flex items-center gap-1.5">
-              <h1 className="text-sm sm:text-base font-black font-orbitron tracking-wider text-white truncate">
+              <h1 className="text-xs sm:text-sm font-black font-orbitron tracking-wider text-white whitespace-nowrap">
                 CYBER ARCADE
               </h1>
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shrink-0 font-bold">
+              <span className="text-[8px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shrink-0 font-bold">
                 HUB
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 truncate">Choose a game to play</p>
+            <p className="text-[10px] text-slate-400 leading-tight">6 Neon Games · Instant Play</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={() => {
-              playClickSound(soundEnabled);
-              setShowHubInfo(!showHubInfo);
-            }}
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer"
-            title="Arcade Info"
-            aria-label="Arcade Info"
-          >
-            <Info className="w-4 h-4" />
-          </button>
+        {/* Clean, compact right controls */}
+        <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => {
               playClickSound(soundEnabled);
               onToggleSound();
             }}
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-cyan-400 flex items-center justify-center transition-colors cursor-pointer"
             title={soundEnabled ? 'Mute Sound' : 'Enable Sound'}
             aria-label="Toggle sound"
           >
-            {soundEnabled ? <Volume2 className="w-4 h-4 text-cyan-400" /> : <VolumeX className="w-4 h-4" />}
+            {soundEnabled ? <Volume2 className="w-3.5 h-3.5 text-cyan-400" /> : <VolumeX className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            onClick={() => {
+              playClickSound(soundEnabled);
+              triggerHaptic('light');
+              toggleFullscreen();
+            }}
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-cyan-400 flex items-center justify-center transition-colors cursor-pointer"
+            title={isFullscreen ? 'Exit Fullscreen' : 'Enter 100% Fullscreen'}
+            aria-label="Toggle Fullscreen"
+          >
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 text-cyan-400" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            onClick={() => {
+              playClickSound(soundEnabled);
+              setShowHubInfo(!showHubInfo);
+            }}
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-cyan-400 flex items-center justify-center transition-colors cursor-pointer"
+            title="Arcade Info"
+            aria-label="Arcade Info"
+          >
+            <Info className="w-3.5 h-3.5" />
           </button>
         </div>
       </header>
 
-      {/* Category Filter Chips & Online Room Button */}
-      <div className="shrink-0 w-full flex items-center justify-between gap-2 py-2 my-1 z-10">
-        <nav className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+      {/* Category Filter Chips & Right-Aligned Install CTA (Balanced Layout) */}
+      <div className="shrink-0 w-full flex items-center justify-between gap-2 py-1.5 z-10">
+        <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar">
           <button
             onClick={() => {
               playClickSound(soundEnabled);
               setSelectedCategory('all');
             }}
-            className={`shrink-0 h-8 px-3 flex items-center justify-center rounded-xl text-[11px] font-orbitron font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+            className={`shrink-0 h-7 px-2.5 flex items-center justify-center rounded-lg text-[10px] font-orbitron font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer ${
               selectedCategory === 'all'
-                ? 'bg-cyan-500 text-slate-950 shadow-[0_0_14px_rgba(0,240,255,0.4)]'
-                : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700'
+                ? 'bg-cyan-500 text-slate-950 shadow-[0_0_10px_rgba(0,240,255,0.35)]'
+                : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
             }`}
           >
             ALL ({games.length})
@@ -252,10 +276,10 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
               playClickSound(soundEnabled);
               setSelectedCategory('duel');
             }}
-            className={`shrink-0 h-8 px-3 flex items-center justify-center rounded-xl text-[11px] font-orbitron font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+            className={`shrink-0 h-7 px-2.5 flex items-center justify-center rounded-lg text-[10px] font-orbitron font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer ${
               selectedCategory === 'duel'
-                ? 'bg-pink-500 text-white shadow-[0_0_14px_rgba(255,0,127,0.4)]'
-                : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700'
+                ? 'bg-pink-500 text-white shadow-[0_0_10px_rgba(255,0,127,0.35)]'
+                : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
             }`}
           >
             DUEL
@@ -265,19 +289,44 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
               playClickSound(soundEnabled);
               setSelectedCategory('arcade');
             }}
-            className={`shrink-0 h-8 px-3 flex items-center justify-center rounded-xl text-[11px] font-orbitron font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+            className={`shrink-0 h-7 px-2.5 flex items-center justify-center rounded-lg text-[10px] font-orbitron font-bold tracking-wider transition-all whitespace-nowrap cursor-pointer ${
               selectedCategory === 'arcade'
-                ? 'bg-emerald-500 text-slate-950 shadow-[0_0_14px_rgba(16,185,129,0.4)]'
-                : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700'
+                ? 'bg-emerald-500 text-slate-950 shadow-[0_0_10px_rgba(16,185,129,0.35)]'
+                : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
             }`}
           >
             ARCADE
           </button>
         </nav>
+
+        {/* Install CTA utilizing the available right space */}
+        {!isInstalled ? (
+          <button
+            onClick={() => {
+              playClickSound(soundEnabled);
+              triggerHaptic('medium');
+              if (isInstallable) {
+                install();
+              } else {
+                setShowInstallGuide(true);
+              }
+            }}
+            className="shrink-0 h-7 px-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-pink-500 hover:from-cyan-400 hover:to-pink-400 text-slate-950 font-orbitron font-bold text-[10px] flex items-center gap-1 shadow-[0_0_10px_rgba(6,182,212,0.35)] active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+            title="Install Mobile App (No URL Bar)"
+          >
+            <Download className="w-3 h-3" />
+            <span>INSTALL APP</span>
+          </button>
+        ) : (
+          <div className="shrink-0 h-7 px-2 flex items-center gap-1 text-[9px] font-mono text-cyan-400 bg-cyan-950/40 border border-cyan-500/30 rounded-lg">
+            <Smartphone className="w-3 h-3" />
+            <span>APP MODE</span>
+          </div>
+        )}
       </div>
 
       {/* Games List - Scrollable Responsive Grid */}
-      <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 space-y-2.5 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-3 z-10 my-1 no-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2.5 z-10 my-0.5 no-scrollbar">
         {filteredGames.map((game, index) => (
           <motion.div
             key={game.id}
@@ -287,10 +336,10 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
             onClick={() => handleGameClick(game.id)}
-            className={`p-3.5 rounded-2xl bg-slate-900/80 border ${game.borderColor} transition-all cursor-pointer backdrop-blur-md relative overflow-hidden group shadow-md flex flex-col justify-between hover:shadow-lg`}
+            className={`p-3 rounded-xl sm:rounded-2xl bg-slate-900/80 border ${game.borderColor} transition-all cursor-pointer backdrop-blur-md relative overflow-hidden group shadow-md flex flex-col justify-between hover:shadow-lg`}
           >
             <div>
-              <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
                 <div className="flex items-center gap-1.5">
                   <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border tracking-wider ${game.badgeBg}`}>
                     {game.tag}
@@ -302,27 +351,27 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
                   </span>
                 </div>
 
-                <div className="w-7 h-7 rounded-xl bg-slate-800 border border-slate-700/70 flex items-center justify-center text-slate-300 group-hover:bg-cyan-500 group-hover:text-slate-950 transition-all shrink-0">
-                  <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                <div className="w-6 h-6 rounded-lg bg-slate-800 border border-slate-700/70 flex items-center justify-center text-slate-300 group-hover:bg-cyan-500 group-hover:text-slate-950 transition-all shrink-0">
+                  <Play className="w-3 h-3 fill-current ml-0.5" />
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 {game.iconVisual}
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-sm font-bold font-orbitron text-white group-hover:text-cyan-300 transition-colors truncate">
+                  <h2 className="text-xs sm:text-sm font-bold font-orbitron text-white group-hover:text-cyan-300 transition-colors truncate">
                     {game.title}
                   </h2>
-                  <p className="text-[11px] text-slate-400 font-medium truncate">
+                  <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium truncate">
                     {game.subtitle}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+            <div className="mt-2 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
               <span className="line-clamp-1 pr-2 text-slate-400 text-[10px]">{game.description}</span>
-              <div className="flex items-center gap-0.5 text-cyan-400 font-bold font-orbitron text-[10px] shrink-0">
+              <div className="flex items-center gap-0.5 text-cyan-400 font-bold font-orbitron text-[9px] sm:text-[10px] shrink-0">
                 <span>PLAY</span>
                 <ChevronRight className="w-3 h-3" />
               </div>
@@ -331,19 +380,19 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
         ))}
       </div>
 
-      {/* Quick Launch Bottom Bar */}
-      <footer className="shrink-0 w-full pt-2 z-10">
-        <div className="p-2.5 sm:p-3 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-2 shadow-sm">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
+      {/* Quick Launch Bottom Bar - Slim & Non-intrusive */}
+      <footer className="shrink-0 w-full pt-1.5 z-10">
+        <div className="p-2 sm:p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-2 shadow-sm">
+          <div className="flex items-center gap-2 min-w-0">
+            <Sparkles className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
             <div className="min-w-0">
-              <div className="text-[11px] font-bold font-orbitron text-white truncate">READY TO PLAY?</div>
-              <div className="text-[10px] text-slate-400 truncate">Zero lag · Web Audio Synthesizer · Haptics</div>
+              <div className="text-[10px] sm:text-[11px] font-bold font-orbitron text-white truncate">READY TO PLAY?</div>
+              <div className="text-[9px] text-slate-400 truncate">Zero lag · Web Audio Synthesizer · Haptics</div>
             </div>
           </div>
           <button
             onClick={() => handleGameClick('tictactoe')}
-            className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black font-orbitron text-xs tracking-wider flex items-center gap-1 shadow-[0_0_12px_rgba(0,240,255,0.3)] cursor-pointer transition-all shrink-0 whitespace-nowrap"
+            className="px-2.5 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black font-orbitron text-[11px] tracking-wider flex items-center gap-1 shadow-[0_0_10px_rgba(0,240,255,0.3)] cursor-pointer transition-all shrink-0 whitespace-nowrap"
           >
             <span>QUICK DUEL</span>
           </button>
@@ -386,6 +435,10 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
                   <strong className="text-amber-400 font-orbitron block mb-0.5">🏆 High Score Persistence</strong>
                   All game streaks and high scores are automatically saved to local storage.
                 </div>
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-cyan-500/30">
+                  <strong className="text-cyan-300 font-orbitron block mb-0.5">📱 Mobile App Mode (No URL Bar)</strong>
+                  Tap the <span className="text-white font-bold">Install</span> or <span className="text-white font-bold">Fullscreen</span> button at the top to hide browser address bars, headers, and footers for a 100% native mobile app experience!
+                </div>
               </div>
 
               <button
@@ -393,6 +446,96 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
                 className="w-full mt-4 py-2.5 bg-cyan-500 text-slate-950 font-orbitron font-black rounded-xl text-xs tracking-wider cursor-pointer"
               >
                 GOT IT
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Direct App Install / Download Guide Modal */}
+      <AnimatePresence>
+        {showInstallGuide && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-sm rounded-2xl bg-slate-900 border border-cyan-500/40 p-5 shadow-2xl text-slate-100 relative"
+            >
+              <button
+                onClick={() => setShowInstallGuide(false)}
+                className="absolute top-3 right-3 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-2.5 mb-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-pink-500 p-0.5 shrink-0">
+                  <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center text-cyan-300">
+                    <Download className="w-4.5 h-4.5" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold font-orbitron text-white">
+                    HOW TO INSTALL APP
+                  </h3>
+                  <p className="text-[11px] text-cyan-400">Removes browser bar for full screen!</p>
+                </div>
+              </div>
+
+              {isInstallable ? (
+                <div className="space-y-3 my-4">
+                  <p className="text-xs text-slate-300">
+                    Your browser is ready! Tap below to add Cyber Arcade Hub directly to your phone's home screen.
+                  </p>
+                  <button
+                    onClick={async () => {
+                      await install();
+                      setShowInstallGuide(false);
+                    }}
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-pink-500 text-slate-950 font-orbitron font-bold text-xs shadow-lg active:scale-98 transition-transform cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    INSTALL NOW
+                  </button>
+                </div>
+              ) : isIOS ? (
+                <div className="space-y-2.5 my-3 text-xs text-slate-300">
+                  <div className="flex items-start gap-2.5 p-2 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="w-5 h-5 rounded-md bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-[10px] shrink-0">1</span>
+                    <span>Tap the Safari <strong>Share</strong> button (<Share2 className="w-3.5 h-3.5 inline text-cyan-400 -mt-0.5" />).</span>
+                  </div>
+                  <div className="flex items-start gap-2.5 p-2 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="w-5 h-5 rounded-md bg-pink-500/20 text-pink-400 flex items-center justify-center font-bold text-[10px] shrink-0">2</span>
+                    <span>Scroll and tap <strong>"Add to Home Screen"</strong> (<PlusSquare className="w-3.5 h-3.5 inline text-pink-400 -mt-0.5" />).</span>
+                  </div>
+                  <div className="flex items-start gap-2.5 p-2 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-[10px] shrink-0">3</span>
+                    <span>Open from your Home Screen for a zero-URL-bar real mobile app experience!</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2.5 my-3 text-xs text-slate-300">
+                  <div className="flex items-start gap-2.5 p-2 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="w-5 h-5 rounded-md bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-[10px] shrink-0">1</span>
+                    <span>Tap Chrome's <strong>three dots (⋮)</strong> menu in the top right.</span>
+                  </div>
+                  <div className="flex items-start gap-2.5 p-2 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="w-5 h-5 rounded-md bg-pink-500/20 text-pink-400 flex items-center justify-center font-bold text-[10px] shrink-0">2</span>
+                    <span>Tap <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</span>
+                  </div>
+                  <div className="flex items-start gap-2.5 p-2 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-[10px] shrink-0">3</span>
+                    <span>Or tap the <strong>Fullscreen (⛶)</strong> button at any time to hide URL bars immediately!</span>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={() => setShowInstallGuide(false)}
+                className="w-full mt-2 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-orbitron text-xs cursor-pointer transition-colors"
+              >
+                CLOSE
               </button>
             </motion.div>
           </div>

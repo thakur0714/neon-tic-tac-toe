@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { CarromPiece, ShotIntent, Vector2D } from '../../../types/carrom';
 import {
   BOARD_SIZE,
@@ -13,6 +13,15 @@ import {
   BASELINE_X_MAX,
   calculateTrajectory,
 } from '../../../utils/carromPhysics';
+import { triggerHaptic } from '../../../utils/audio';
+
+interface PullState {
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+  power: number;
+}
 
 interface CarromBoardProps {
   pieces: CarromPiece[];
@@ -45,6 +54,7 @@ export const CarromBoard: React.FC<CarromBoardProps> = ({
   onSliderChange,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [pullState, setPullState] = useState<PullState | null>(null);
   const isDraggingStrikerRef = useRef(false);
   const isAimDraggingRef = useRef(false);
   const dragStartRef = useRef<Vector2D>({ x: 0, y: 0 });
@@ -379,7 +389,7 @@ export const CarromBoard: React.FC<CarromBoardProps> = ({
       // Direction indicator arrow on striker
       if (!isMoving) {
         ctx.beginPath();
-        const arrowLen = 14;
+        const arrowLen = 15;
         ctx.moveTo(
           striker.x + Math.cos(aimAngle) * arrowLen,
           striker.y + Math.sin(aimAngle) * arrowLen
@@ -398,25 +408,112 @@ export const CarromBoard: React.FC<CarromBoardProps> = ({
 
       ctx.restore();
     }
-  }, [pieces, striker, currentTurn, isAiming, isMoving, aimAngle, aimPower]);
+
+    // 8. Slingshot Elastic Pull Tether & Visual Power Indicator
+    if (pullState && !isMoving && !striker.isPocketed) {
+      const pullDist = Math.hypot(
+        pullState.startX - pullState.currentX,
+        pullState.startY - pullState.currentY
+      );
+
+      if (pullDist > 8) {
+        ctx.save();
+        const power = pullState.power;
+        const bandColor = power < 0.45 ? '#06b6d4' : power < 0.78 ? '#f59e0b' : '#ef4444';
+        const glowColor =
+          power < 0.45
+            ? 'rgba(6, 182, 212, 0.6)'
+            : power < 0.78
+            ? 'rgba(245, 158, 11, 0.6)'
+            : 'rgba(239, 68, 68, 0.7)';
+
+        // Dual elastic cords from striker sides to finger pull anchor
+        const perp = aimAngle + Math.PI / 2;
+        const offset = STRIKER_RADIUS * 0.85;
+        const lx = striker.x + Math.cos(perp) * offset;
+        const ly = striker.y + Math.sin(perp) * offset;
+        const rx = striker.x - Math.cos(perp) * offset;
+        const ry = striker.y - Math.sin(perp) * offset;
+
+        ctx.strokeStyle = bandColor;
+        ctx.lineWidth = 3.5;
+        ctx.shadowColor = glowColor;
+        ctx.shadowBlur = 12;
+
+        // Left elastic cord
+        ctx.beginPath();
+        ctx.moveTo(lx, ly);
+        ctx.lineTo(pullState.currentX, pullState.currentY);
+        ctx.stroke();
+
+        // Right elastic cord
+        ctx.beginPath();
+        ctx.moveTo(rx, ry);
+        ctx.lineTo(pullState.currentX, pullState.currentY);
+        ctx.stroke();
+
+        // Finger pull anchor ring under user's touch
+        ctx.beginPath();
+        ctx.arc(pullState.currentX, pullState.currentY, 15, 0, Math.PI * 2);
+        ctx.fillStyle = glowColor;
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // Inner center bead
+        ctx.beginPath();
+        ctx.arc(pullState.currentX, pullState.currentY, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+
+        // Percentage & release hint tag
+        ctx.font = 'bold 11px Orbitron, sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(0,0,0,0.85)';
+        ctx.shadowBlur = 6;
+        ctx.fillText(
+          `${Math.round(power * 100)}% · RELEASE TO STRIKE`,
+          pullState.currentX,
+          pullState.currentY + 28
+        );
+
+        ctx.restore();
+      }
+    }
+  }, [pieces, striker, currentTurn, isAiming, isMoving, aimAngle, aimPower, pullState]);
 
   // ── Touch & Pointer Interaction ────────────────────────────────
   const handlePointerDown = (e: React.MouseEvent | React.TouchEvent) => {
     if (isMoving || !isMyTurn) return;
     const pt = getBoardCoords(e);
 
-    // 1. Check if tapped on Striker to pull/aim
+    // 1. Grab Striker Slingshot:
+    // Generous touch radius (75px) around the striker, or anywhere in baseline control zone
     const dx = pt.x - striker.x;
     const dy = pt.y - striker.y;
     const distSq = dx * dx + dy * dy;
 
-    if (distSq < (STRIKER_RADIUS + 22) * (STRIKER_RADIUS + 22)) {
+    const isPlayer1 = currentTurn === 'player1';
+    const isNearStriker = distSq < 75 * 75;
+    const isBaselineZone = isPlayer1 ? pt.y > 380 : pt.y < 220;
+
+    if (isNearStriker || isBaselineZone) {
       isDraggingStrikerRef.current = true;
-      dragStartRef.current = pt;
+      dragStartRef.current = { x: striker.x, y: striker.y };
+      setPullState({
+        startX: striker.x,
+        startY: striker.y,
+        currentX: pt.x,
+        currentY: pt.y,
+        power: aimPower,
+      });
+      triggerHaptic('light');
       return;
     }
 
-    // 2. Or tapped anywhere to set aim direction directly
+    // 2. Or tapped anywhere in playfield/coins to point aim directly towards that position
     isAimDraggingRef.current = true;
     dragStartRef.current = pt;
     const angle = Math.atan2(pt.y - striker.y, pt.x - striker.x);
@@ -428,16 +525,34 @@ export const CarromBoard: React.FC<CarromBoardProps> = ({
     const pt = getBoardCoords(e);
 
     if (isDraggingStrikerRef.current) {
-      // Pull-back slingshot mode: pulling back increases power and sets angle opposite
+      // True Pull-Back Slingshot:
+      // Pulling BACK (away from coins, e.g. downward for Player 1: pt.y > striker.y)
+      // aims FORWARD (upward into coins: pullY < 0, angle -> -PI/2)
+      // Pulling down-left aims up-right; pulling down-right aims up-left.
       const pullX = dragStartRef.current.x - pt.x;
       const pullY = dragStartRef.current.y - pt.y;
       const pullDist = Math.hypot(pullX, pullY);
 
       if (pullDist > 8) {
-        // Aim direction is opposite to pull
-        const angle = Math.atan2(-pullY, -pullX);
-        const power = Math.min(1.0, Math.max(0.15, pullDist / 120));
+        // Aim direction is exact opposite of drag vector
+        const angle = Math.atan2(pullY, pullX);
+        const power = Math.min(1.0, Math.max(0.18, pullDist / 135));
         onAimChange(angle, power);
+        setPullState({
+          startX: dragStartRef.current.x,
+          startY: dragStartRef.current.y,
+          currentX: pt.x,
+          currentY: pt.y,
+          power,
+        });
+      } else {
+        setPullState({
+          startX: dragStartRef.current.x,
+          startY: dragStartRef.current.y,
+          currentX: pt.x,
+          currentY: pt.y,
+          power: aimPower,
+        });
       }
     } else if (isAimDraggingRef.current) {
       const angle = Math.atan2(pt.y - striker.y, pt.x - striker.x);
@@ -448,16 +563,29 @@ export const CarromBoard: React.FC<CarromBoardProps> = ({
   const handlePointerUp = () => {
     if (isDraggingStrikerRef.current) {
       isDraggingStrikerRef.current = false;
-      // Slingshot release: trigger fire if pulled sufficiently
-      if (aimPower >= 0.18) {
-        onFireShot({
-          strikerX: strikerSliderX,
-          angle: aimAngle,
-          power: aimPower,
-        });
+      const currentPull = pullState;
+      setPullState(null);
+
+      if (currentPull) {
+        const pullDist = Math.hypot(
+          currentPull.startX - currentPull.currentX,
+          currentPull.startY - currentPull.currentY
+        );
+
+        // Slingshot release: trigger fire if pulled back sufficiently
+        if (pullDist >= 20 && aimPower >= 0.18) {
+          triggerHaptic('medium');
+          onFireShot({
+            strikerX: strikerSliderX,
+            angle: aimAngle,
+            power: aimPower,
+          });
+          return;
+        }
       }
     }
     isAimDraggingRef.current = false;
+    setPullState(null);
   };
 
   return (
@@ -471,9 +599,11 @@ export const CarromBoard: React.FC<CarromBoardProps> = ({
           onMouseDown={handlePointerDown}
           onMouseMove={handlePointerMove}
           onMouseUp={handlePointerUp}
+          onMouseLeave={handlePointerUp}
           onTouchStart={handlePointerDown}
           onTouchMove={handlePointerMove}
           onTouchEnd={handlePointerUp}
+          onTouchCancel={handlePointerUp}
         />
 
         {/* Turn watermark banner overlay */}

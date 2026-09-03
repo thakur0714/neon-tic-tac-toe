@@ -30,7 +30,10 @@ import {
   Radio,
   Wifi,
   Users,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
+import { usePWAInstall } from '../../utils/usePWAInstall';
 import {
   playClickSound,
   playDiceRollSound,
@@ -64,6 +67,7 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
   soundEnabled,
   onToggleSound,
 }) => {
+  const { isFullscreen, toggleFullscreen } = usePWAInstall();
   const [theme, setTheme] = useState<LudoThemeMode>('cyber');
   const [gameStage, setGameStage] = useState<'setup' | 'online-lobby' | 'playing'>('setup');
   const [setupConfig, setSetupConfig] = useState<LudoSetupConfig>(DEFAULT_SETUP);
@@ -617,6 +621,13 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
         </div>
 
         <div className="flex items-center gap-1">
+          <button
+            onClick={toggleFullscreen}
+            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen (Hide URL Bar)'}
+            className="p-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-cyan-400 cursor-pointer transition"
+          >
+            {isFullscreen ? <Minimize2 className="w-3 h-3 text-cyan-400" /> : <Maximize2 className="w-3 h-3" />}
+          </button>
           <button
             onClick={() => handleResetMatch(true)}
             title="Reset Game"
