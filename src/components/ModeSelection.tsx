@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Users, Bot, Zap, ArrowLeft, Skull, Sparkles, ChevronRight, Check, Volume2, VolumeX, Trophy, HelpCircle } from 'lucide-react';
+import { Users, Bot, Zap, ArrowLeft, Skull, Sparkles, ChevronRight, Check, Volume2, VolumeX, Trophy, HelpCircle, Radio } from 'lucide-react';
 import { GameConfig, GameMode, Player } from '../types';
 import { playClickSound, triggerHaptic } from '../utils/audio';
 
@@ -8,6 +8,7 @@ interface ModeSelectionProps {
   config: GameConfig;
   onUpdateConfig: (newConfig: Partial<GameConfig>) => void;
   onStartGame: () => void;
+  onStartOnline: () => void;
   onBack: () => void;
   onOpenRules: () => void;
   onOpenStats: () => void;
@@ -18,16 +19,17 @@ export const ModeSelection: React.FC<ModeSelectionProps> = ({
   config,
   onUpdateConfig,
   onStartGame,
+  onStartOnline,
   onBack,
   onOpenRules,
   onOpenStats,
   onToggleSound,
 }) => {
-  const [selectedMode, setSelectedMode] = useState<GameMode>(config.mode);
+  const [selectedMode, setSelectedMode] = useState<GameMode | 'online'>(config.mode);
   const [playerSymbol, setPlayerSymbol] = useState<Player>(config.playerSymbol);
   const [firstMove, setFirstMove] = useState<'player' | 'ai' | 'alternate'>('player');
 
-  const handleSelectMode = (mode: GameMode) => {
+  const handleSelectMode = (mode: GameMode | 'online') => {
     playClickSound(config.soundEnabled);
     triggerHaptic('light', config.hapticsEnabled);
     setSelectedMode(mode);
@@ -42,6 +44,11 @@ export const ModeSelection: React.FC<ModeSelectionProps> = ({
   const handleConfirmStart = () => {
     playClickSound(config.soundEnabled);
     triggerHaptic('medium', config.hapticsEnabled);
+
+    if (selectedMode === 'online') {
+      onStartOnline();
+      return;
+    }
 
     const aiSymbol: Player = playerSymbol === 'X' ? 'O' : 'X';
     let startingPlayer: Player = 'X';
@@ -128,6 +135,55 @@ export const ModeSelection: React.FC<ModeSelectionProps> = ({
             Choose your opponent & challenge tier
           </p>
         </div>
+
+        {/* Card 0: Online 1v1 */}
+        <motion.div
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => handleSelectMode('online')}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden backdrop-blur-md ${
+            selectedMode === 'online'
+              ? 'bg-slate-900/90 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.3)]'
+              : 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3.5">
+              <div
+                className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
+                  selectedMode === 'online'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50'
+                    : 'bg-slate-800/60 text-slate-400'
+                }`}
+              >
+                <Radio className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-sm text-white font-orbitron tracking-wide">
+                    Online 1v1
+                  </h3>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 font-bold border border-emerald-800/50">
+                    P2P LIVE
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Create or join a room & duel a friend across devices
+                </p>
+              </div>
+            </div>
+
+            <div
+              className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
+                selectedMode === 'online'
+                  ? 'border-emerald-400 bg-emerald-500 text-slate-950'
+                  : 'border-slate-700 bg-slate-800/50'
+              }`}
+            >
+              {selectedMode === 'online' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+            </div>
+          </div>
+        </motion.div>
 
         {/* Card 1: Pass & Play */}
         <motion.div
@@ -357,7 +413,7 @@ export const ModeSelection: React.FC<ModeSelectionProps> = ({
           onClick={handleConfirmStart}
           className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-cyan-400 via-sky-400 to-pink-500 text-slate-950 font-black font-orbitron text-sm tracking-wider flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,240,255,0.3)] border border-cyan-200/50 cursor-pointer"
         >
-          <span>ENTER ARENA</span>
+          <span>{selectedMode === 'online' ? 'FIND MATCH' : 'ENTER ARENA'}</span>
           <ChevronRight className="w-4 h-4 stroke-[3]" />
         </motion.button>
       </div>

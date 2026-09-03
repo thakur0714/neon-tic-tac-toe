@@ -14,7 +14,9 @@ class PeerManager {
   private gameType: MultiplayerGameType = 'tictactoe';
   private pingInterval: any = null;
   private lastPingTime: number = 0;
+  private lastPongTime: number = 0;
   private latency: number = 0;
+  private readonly PONG_TIMEOUT_MS = 12000;
 
   private onMessageCallbacks: Set<MessageCallback> = new Set();
   private onStatusCallbacks: Set<StatusCallback> = new Set();
@@ -205,6 +207,7 @@ class PeerManager {
       }
 
       if (msg.type === 'PONG') {
+        this.lastPongTime = Date.now();
         if (msg.timestamp) {
           this.latency = Math.max(1, Math.round(Date.now() - msg.timestamp));
           this.onLatencyCallbacks.forEach((cb) => cb(this.latency));
@@ -217,8 +220,6 @@ class PeerManager {
     });
 
     this.conn.on('close', () => {
-      // ✅ FIX: Notify opponent that they disconnected
-      this.sendMessage({ type: 'OPPONENT_LEFT' });
       this.setStatus('disconnected', 'Opponent disconnected');
       this.stopHeartbeat();
     });
@@ -243,12 +244,28 @@ class PeerManager {
 
   private startHeartbeat() {
     this.stopHeartbeat();
+    this.lastPongTime = Date.now();
     this.pingInterval = setInterval(() => {
       if (this.isConnected()) {
+        // No PONG for too long → treat opponent as gone (crash / network drop)
+        if (Date.now() - this.lastPongTime > this.PONG_TIMEOUT_MS) {
+          this.setStatus('disconnected', 'Opponent connection lost');
+          this.stopHeartbeat();
+          try { this.conn?.close(); } catch { /* noop */ }
+          return;
+        }
         this.lastPingTime = Date.now();
         this.sendMessage({ type: 'PING', timestamp: this.lastPingTime });
       }
     }, 4000);
+  }
+
+  /** Explicitly leave: tell opponent while the channel is still open, then tear down. */
+  public leaveRoom() {
+    if (this.conn && this.conn.open) {
+      this.sendMessage({ type: 'OPPONENT_LEFT' });
+    }
+    this.cleanup();
   }
 
   private stopHeartbeat() {

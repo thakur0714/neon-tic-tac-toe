@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SplashScreen } from './SplashScreen';
 import { ModeSelection } from './ModeSelection';
+import { TicTacToeOnlineModal } from './TicTacToeOnlineModal';
 import { ScoreBoard } from './ScoreBoard';
 import { GameBoard } from './GameBoard';
 import { WinnerModal } from './WinnerModal';
@@ -51,7 +52,7 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
   stats,
   onUpdateStats,
 }) => {
-  const [screen, setScreen] = useState<'splash' | 'menu' | 'game'>('menu');
+  const [screen, setScreen] = useState<'splash' | 'menu' | 'online-lobby' | 'game'>('menu');
   const [board, setBoard] = useState<Board>(Array(9).fill(null));
   const [currentPlayer, setCurrentPlayer] = useState<Player>('X');
   const [roundStartingPlayer, setRoundStartingPlayer] = useState<Player>('X');
@@ -280,7 +281,11 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
         const nextStarter = msg.startingPlayer || 'X';
         const roundNum = msg.roundNumber || stats.totalGames + 1;
         startNewRound(nextStarter, roundNum);
+      } else if (msg.type === 'REMATCH_CANCEL') {
+        setIsRematchRequestedByOpponent(false);
       } else if (msg.type === 'OPPONENT_LEFT') {
+        setIsRematchRequestedByMe(false);
+        setIsRematchRequestedByOpponent(false);
         setIsOpponentLeftModalOpen(true);
       } else if (msg.type === 'EMOTE' && msg.emote) {
         setIncomingEmote(msg.emote);
@@ -305,6 +310,14 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
       unsubStatus();
     };
   }, [config.soundEnabled, config.hapticsEnabled, onUpdateConfig, startNewRound, stats.totalGames]);
+
+  // Notify opponent if the tab is closed / refreshed
+  useEffect(() => {
+    if (!isOnlineMultiplayer) return;
+    const handleUnload = () => peerManager.leaveRoom();
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [isOnlineMultiplayer]);
 
   // Clean up timeouts
   useEffect(() => {
@@ -536,6 +549,13 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
     }
   };
 
+  const handleCancelRematch = () => {
+    setIsRematchRequestedByMe(false);
+    if (isOnlineMultiplayer) {
+      peerManager.sendMessage({ type: 'REMATCH_CANCEL' });
+    }
+  };
+
   const handleResetStats = () => {
     onUpdateStats({
       winsX: 0,
@@ -548,9 +568,26 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
     });
   };
 
+  // Called by the in-game online lobby once a P2P link is established.
+  const handleOnlineConnected = () => {
+    setIsOnlineMultiplayer(true);
+    setOnlineRole(peerManager.getRole());
+    onUpdateConfig({ mode: 'pvp' });
+    setScreen('game');
+    if (!coinFlipInitiatedRef.current) {
+      setIsCoinFlipModalOpen(true);
+      setCoinTossPhase('choose');
+      coinFlipInitiatedRef.current = true;
+    }
+  };
+
   const handleLeaveRoom = () => {
     playClickSound(config.soundEnabled);
-    peerManager.cleanup();
+    if (isOnlineMultiplayer) {
+      peerManager.leaveRoom();
+    } else {
+      peerManager.cleanup();
+    }
     setIsOpponentLeftModalOpen(false);
     onBackToHub();
   };
@@ -560,10 +597,7 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
       {/* Top Header */}
       <div className="w-full px-4 pt-2 flex items-center justify-between z-20">
         <button
-          onClick={() => {
-            playClickSound(config.soundEnabled);
-            onBackToHub();
-          }}
+          onClick={handleLeaveRoom}
           className="px-2.5 py-1 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-cyan-400 text-[11px] font-orbitron font-bold flex items-center gap-1 cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
@@ -606,10 +640,19 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
             startNewRound(config.startingPlayer, 1);
             setScreen('game');
           }}
+          onStartOnline={() => setScreen('online-lobby')}
           onBack={() => onBackToHub()}
           onOpenRules={() => setIsRulesModalOpen(true)}
           onOpenStats={() => setIsStatsModalOpen(true)}
           onToggleSound={onToggleSound}
+        />
+      )}
+
+      {/* Screen 2.5: Online Lobby (create / join room) */}
+      {screen === 'online-lobby' && (
+        <TicTacToeOnlineModal
+          onBack={() => setScreen('menu')}
+          onConnected={handleOnlineConnected}
         />
       )}
 
@@ -709,6 +752,7 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
             config={config}
             stats={stats}
             onPlayAgain={handlePlayAgain}
+            onCancelRematch={handleCancelRematch}
             onMainMenu={() => {
               setIsWinnerModalOpen(false);
               setScreen('menu');

@@ -10,6 +10,7 @@ interface WinnerModalProps {
   config: GameConfig;
   stats: GameStats;
   onPlayAgain: () => void;
+  onCancelRematch?: () => void;
   onMainMenu: () => void;
   onOpenStats: () => void;
   isOnlineMultiplayer?: boolean;
@@ -25,6 +26,7 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
   config,
   stats,
   onPlayAgain,
+  onCancelRematch,
   onMainMenu,
   onOpenStats,
   isOnlineMultiplayer = false,
@@ -274,6 +276,15 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
                 </>
               )}
             </motion.button>
+
+            {isRematchRequestedByMe && onCancelRematch && (
+              <button
+                onClick={onCancelRematch}
+                className="w-full py-2.5 px-5 rounded-xl bg-slate-800/80 hover:bg-rose-900/40 border border-slate-700 hover:border-rose-500/50 text-rose-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <span>✕ CANCEL REMATCH REQUEST</span>
+              </button>
+            )}
 
             <div className="grid grid-cols-2 gap-2">
               <button

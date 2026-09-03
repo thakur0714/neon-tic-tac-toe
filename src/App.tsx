@@ -170,7 +170,6 @@ export default function App() {
       {activeGame === 'hub' && (
         <ArcadeHub
           onSelectGame={(gameId) => setActiveGame(gameId)}
-          onStartMultiplayer={(gameId) => setActiveGame(gameId as ArcadeGameId)}
           soundEnabled={soundEnabled}
           onToggleSound={handleToggleSound}
           tttStreak={tttStats.bestStreak}

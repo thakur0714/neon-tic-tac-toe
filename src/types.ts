@@ -129,6 +129,7 @@ export interface MultiplayerMessage {
     | 'LUDO_REMATCH'
     | 'REMATCH_REQ'
     | 'REMATCH_ACCEPT'
+    | 'REMATCH_CANCEL'
     | 'REMATCH_START'
     | 'FLIP_COIN_REQ'
     | 'FLIP_COIN_CHOICE'

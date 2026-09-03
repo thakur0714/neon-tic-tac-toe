@@ -9,14 +9,9 @@ import {
   Sparkles,
   ChevronRight,
   Info,
-  Trophy,
-  Zap,
-  Radio,
-  Users,
 } from 'lucide-react';
-import { ArcadeGameId, MultiplayerGameType } from '../types';
+import { ArcadeGameId } from '../types';
 import { playClickSound, triggerHaptic } from '../utils/audio';
-import { MultiplayerLobbyModal } from './MultiplayerLobbyModal';
 
 interface ArcadeHubProps {
   onSelectGame: (gameId: ArcadeGameId) => void;
@@ -26,7 +21,6 @@ interface ArcadeHubProps {
   snakeHighScore: number;
   connect4Wins: number;
   score2048HighScore: number;
-  onStartMultiplayer?: (gameType: MultiplayerGameType) => void;
 }
 
 export const ArcadeHub: React.FC<ArcadeHubProps> = ({
@@ -37,11 +31,9 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
   snakeHighScore,
   connect4Wins,
   score2048HighScore,
-  onStartMultiplayer,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'duel' | 'arcade'>('all');
   const [showHubInfo, setShowHubInfo] = useState(false);
-  const [showMultiplayerModal, setShowMultiplayerModal] = useState(false);
 
   const handleGameClick = (gameId: ArcadeGameId) => {
     playClickSound(soundEnabled);
@@ -260,18 +252,6 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
             ARCADE
           </button>
         </nav>
-
-        <button
-          onClick={() => {
-            playClickSound(soundEnabled);
-            triggerHaptic('light');
-            setShowMultiplayerModal(true);
-          }}
-          className="shrink-0 h-8 px-3 rounded-xl bg-gradient-to-r from-cyan-500/20 to-pink-500/20 border border-cyan-400/50 hover:border-cyan-300 text-cyan-300 hover:text-white text-[11px] font-orbitron font-bold flex items-center gap-1.5 shadow-[0_0_12px_rgba(6,182,212,0.2)] transition-all cursor-pointer whitespace-nowrap"
-        >
-          <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-          <span>ONLINE 1v1</span>
-        </button>
       </div>
 
       {/* Games List - Scrollable Responsive Grid */}
@@ -396,20 +376,6 @@ export const ArcadeHub: React.FC<ArcadeHubProps> = ({
           </div>
         )}
       </AnimatePresence>
-
-      {/* Online P2P Multiplayer Lobby Modal */}
-      <MultiplayerLobbyModal
-        isOpen={showMultiplayerModal}
-        onClose={() => setShowMultiplayerModal(false)}
-        onStartGame={(gameType) => {
-          setShowMultiplayerModal(false);
-          if (onStartMultiplayer) {
-            onStartMultiplayer(gameType);
-          } else {
-            onSelectGame(gameType as ArcadeGameId);
-          }
-        }}
-      />
     </div>
   );
 };
