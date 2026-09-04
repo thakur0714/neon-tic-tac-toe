@@ -120,6 +120,7 @@ export interface UnoOnlineSnapshot {
   pendingCardForColor?: UnoCard | null;
   isMyTurn: boolean;
   initialCardCount?: number;
+  isDealing?: boolean;
 }
 
 export type UnoRoomMessage =

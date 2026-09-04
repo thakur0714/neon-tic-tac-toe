@@ -397,6 +397,7 @@ class UnoRoomManager {
       }
       this.emitStatus('playing');
       this.startPingLoop();
+      this.emitMsg(msg);
       return;
     }
 

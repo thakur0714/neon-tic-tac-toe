@@ -96,6 +96,16 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
   const [onlineSnapshot, setOnlineSnapshot] = useState<UnoOnlineSnapshot | null>(null);
   const [onlineLatency, setOnlineLatency] = useState<number>(0);
 
+  // Synced refs to eliminate stale closure bugs across network handlers
+  const onlineRoleRef = useRef<'host' | 'client' | null>(onlineRole);
+  onlineRoleRef.current = onlineRole;
+  const myOnlineSeatIndexRef = useRef<number>(myOnlineSeatIndex);
+  myOnlineSeatIndexRef.current = myOnlineSeatIndex;
+  const playTypeRef = useRef<UnoPlayType>(playType);
+  playTypeRef.current = playType;
+  const isShufflingDealingRef = useRef<boolean>(isShufflingDealing);
+  isShufflingDealingRef.current = isShufflingDealing;
+
   // Core Game State (Host / Local)
   const [players, setPlayers] = useState<UnoPlayer[]>([]);
   const [currentTurnIndex, setCurrentTurnIndex] = useState<number>(0);
@@ -105,6 +115,23 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
   const [activeColor, setActiveColor] = useState<UnoCardColor>('red');
   const [gameStatus, setGameStatus] = useState<'playing' | 'color-picking' | 'game-over'>('playing');
   const [winner, setWinner] = useState<UnoPlayer | null>(null);
+
+  const playersRef = useRef<UnoPlayer[]>(players);
+  playersRef.current = players;
+  const drawPileRef = useRef<UnoCard[]>(drawPile);
+  drawPileRef.current = drawPile;
+  const discardPileRef = useRef<UnoCard[]>(discardPile);
+  discardPileRef.current = discardPile;
+  const currentTurnIndexRef = useRef<number>(currentTurnIndex);
+  currentTurnIndexRef.current = currentTurnIndex;
+  const directionRef = useRef<UnoDirection>(direction);
+  directionRef.current = direction;
+  const activeColorRef = useRef<UnoCardColor>(activeColor);
+  activeColorRef.current = activeColor;
+  const gameStatusRef = useRef<'playing' | 'color-picking' | 'game-over'>(gameStatus);
+  gameStatusRef.current = gameStatus;
+  const winnerRef = useRef<UnoPlayer | null>(winner);
+  winnerRef.current = winner;
 
   // Interaction State
   const [pendingCardForColor, setPendingCardForColor] = useState<UnoCard | null>(null);
@@ -156,26 +183,31 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
     };
   }, [playType]);
 
+  // Effective online role resolution (immune to async state lag)
+  const effectiveRole = onlineRole || unoRoomManager.getRole();
+  const isOnlineClient = playType === 'online' && effectiveRole === 'client';
+  const isOnlineHost = playType === 'online' && effectiveRole === 'host';
+
   // Top discard card reference
   const topCard =
-    playType === 'online' && onlineRole === 'client'
+    isOnlineClient
       ? onlineSnapshot?.topCard || null
       : discardPile.length > 0
       ? discardPile[discardPile.length - 1]
       : null;
 
   const currentDisplayColor =
-    playType === 'online' && onlineRole === 'client'
+    isOnlineClient
       ? onlineSnapshot?.activeColor || 'red'
       : activeColor;
 
   const currentDisplayTurnIndex =
-    playType === 'online' && onlineRole === 'client'
+    isOnlineClient
       ? onlineSnapshot?.currentTurnIndex || 0
       : currentTurnIndex;
 
   const currentDisplayDirection =
-    playType === 'online' && onlineRole === 'client'
+    isOnlineClient
       ? onlineSnapshot?.direction || 1
       : direction;
 
@@ -184,9 +216,12 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
   // Whether it is currently this client's or local human's turn
   const isHumanTurn =
     playType === 'online'
-      ? onlineRole === 'host'
+      ? isOnlineHost
         ? currentTurnIndex === 0 && gameStatus === 'playing' && !isShufflingDealing
-        : !!onlineSnapshot?.isMyTurn && onlineSnapshot.gameStatus === 'playing' && !isShufflingDealing
+        : !!onlineSnapshot?.isMyTurn &&
+          onlineSnapshot.gameStatus === 'playing' &&
+          !isShufflingDealing &&
+          !onlineSnapshot?.isDealing
       : playType === 'pass-and-play'
       ? gameStatus === 'playing' && !isShufflingDealing && !showPrivacyVeil
       : activePlayer?.type === 'human' && gameStatus === 'playing' && !isShufflingDealing;
@@ -205,9 +240,11 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       win: UnoPlayer | null,
       msg: string,
       curDrawPile: UnoCard[],
-      customInitialCardCount?: number
+      customInitialCardCount?: number,
+      isDealingParam?: boolean
     ) => {
-      if (playType !== 'online' || onlineRole !== 'host') return;
+      const currentHostRole = onlineRoleRef.current || unoRoomManager.getRole();
+      if (currentHostRole !== 'host') return;
 
       const playerSummaries = newPlayers.map((p) => ({
         id: p.id,
@@ -233,11 +270,12 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
           lastActionMessage: msg,
           isMyTurn: curTurn === i,
           initialCardCount: customInitialCardCount || initialCardCount || 7,
+          isDealing: isDealingParam !== undefined ? isDealingParam : isShufflingDealingRef.current,
         };
         unoRoomManager.hostSendToSeat(i, { type: 'STATE', snapshot: clientSnapshot });
       }
     },
-    [playType, onlineRole, initialCardCount]
+    [initialCardCount]
   );
 
   /**
