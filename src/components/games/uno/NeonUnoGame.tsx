@@ -56,6 +56,11 @@ import {
   triggerHaptic,
 } from '../../../utils/audio';
 
+// Grace period given to the initial STATE broadcast to reach clients (connection
+// setup + P2P round-trip) before the shuffle/deal animation starts, so the host
+// and every client kick it off at (roughly) the same wall-clock moment.
+const DEAL_SYNC_DELAY_MS = 900;
+
 interface NeonUnoGameProps {
   onBackToHub: () => void;
   soundEnabled: boolean;
@@ -241,7 +246,8 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       msg: string,
       curDrawPile: UnoCard[],
       customInitialCardCount?: number,
-      isDealingParam?: boolean
+      isDealingParam?: boolean,
+      dealStartAt?: number
     ) => {
       const currentHostRole = onlineRoleRef.current || unoRoomManager.getRole();
       if (currentHostRole !== 'host') return;
@@ -271,6 +277,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
           isMyTurn: curTurn === i,
           initialCardCount: customInitialCardCount || initialCardCount || 7,
           isDealing: isDealingParam !== undefined ? isDealingParam : isShufflingDealingRef.current,
+          dealStartAt,
         };
         unoRoomManager.hostSendToSeat(i, { type: 'STATE', snapshot: clientSnapshot });
       }
@@ -632,23 +639,28 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       setHasDrawnThisTurn(false);
       setUnoPendingPlayerId(null);
       setActionNotification('Online Match Live! Good luck!');
-      setIsShufflingDealing(true);
 
-      // Push initial snapshot
+      // Schedule a shared start time so host and every client begin the
+      // shuffle/deal animation together, instead of the host starting it
+      // locally and clients only starting once their snapshot arrives.
+      const dealStartAt = Date.now() + DEAL_SYNC_DELAY_MS;
+      broadcastHostSnapshot(
+        newPlayers,
+        0,
+        1,
+        initialTopCard,
+        initialTopCard.color,
+        'playing',
+        null,
+        'Match started!',
+        fullDeck,
+        cardCount,
+        true,
+        dealStartAt
+      );
       setTimeout(() => {
-        broadcastHostSnapshot(
-          newPlayers,
-          0,
-          1,
-          initialTopCard,
-          initialTopCard.color,
-          'playing',
-          null,
-          'Match started!',
-          fullDeck,
-          cardCount
-        );
-      }, 200);
+        setIsShufflingDealing(true);
+      }, Math.max(0, dealStartAt - Date.now()));
     }
   };
 
@@ -698,7 +710,14 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
           });
 
           setClientAnimationPlayers(animPlayers);
-          setIsShufflingDealing(true);
+
+          // Start at the host-scheduled shared moment so the shuffle/deal
+          // animation plays in sync with the host and other clients, rather
+          // than as soon as this client's own snapshot happens to arrive.
+          const delay = msg.snapshot.dealStartAt
+            ? Math.max(0, msg.snapshot.dealStartAt - Date.now())
+            : 0;
+          setTimeout(() => setIsShufflingDealing(true), delay);
         }
 
         if (msg.snapshot.gameStatus === 'game-over' && msg.snapshot.winnerName) {

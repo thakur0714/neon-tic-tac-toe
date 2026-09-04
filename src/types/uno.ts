@@ -121,6 +121,7 @@ export interface UnoOnlineSnapshot {
   isMyTurn: boolean;
   initialCardCount?: number;
   isDealing?: boolean;
+  dealStartAt?: number;
 }
 
 export type UnoRoomMessage =
