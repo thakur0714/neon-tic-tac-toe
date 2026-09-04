@@ -310,8 +310,12 @@ class UnoRoomManager {
   startGameAsHost() {
     if (this.role !== 'host') return;
     this.locked = true;
-    this.emitStatus('playing');
+    // Send START to clients first so their message listeners are armed
+    // before the host's own status flips to 'playing' and synchronously
+    // fires the initial STATE snapshot broadcast — otherwise that first
+    // snapshot can be sent (and lost) before clients are listening for it.
     this.hostBroadcast({ type: 'START', initialCardCount: this.initialCardCount });
+    this.emitStatus('playing');
     this.startPingLoop();
   }
 
