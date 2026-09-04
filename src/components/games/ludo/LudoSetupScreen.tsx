@@ -42,7 +42,7 @@ export const LudoSetupScreen: React.FC<LudoSetupScreenProps> = ({ onStart, onBac
   return (
     <div className="h-full w-full flex flex-col bg-slate-950 text-white select-none overflow-y-auto">
       {/* Top bar */}
-      <div className="w-full h-9 px-3 flex items-center justify-between border-b border-slate-800/80 bg-slate-900/70 shrink-0">
+      <div className="w-full h-12 px-4 flex items-center justify-between border-b border-slate-800/80 bg-slate-900/70 shrink-0">
         <button
           onClick={() => {
             tap();
@@ -75,7 +75,7 @@ export const LudoSetupScreen: React.FC<LudoSetupScreenProps> = ({ onStart, onBac
                     tap();
                     setMode(m.id);
                   }}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl border text-left transition-all cursor-pointer ${
                     selected
                       ? 'bg-cyan-500/15 border-cyan-400 text-white shadow-[0_0_14px_rgba(6,182,212,0.25)]'
                       : 'bg-slate-900/70 border-slate-700 text-slate-300 hover:border-slate-500'

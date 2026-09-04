@@ -237,11 +237,18 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
 
   // ── Execute Physics Strike ───────────────────────────────────────
   const handleExecuteShot = useCallback(
-    (intent: ShotIntent, broadcast = true) => {
+    (intent: ShotIntent, broadcast = true, turnOverride?: 'player1' | 'player2') => {
       if (isSimulatingRef.current) return;
 
+      // Trust the authoritative seat carried by an incoming network message over
+      // any possibly-desynced local currentTurn, so turn/side state self-corrects.
+      const activeTurn = turnOverride ?? currentTurn;
+      if (activeTurn !== currentTurn) {
+        setCurrentTurn(activeTurn);
+      }
+
       // Place striker exactly as commanded
-      const initialStriker = createStriker(currentTurn, intent.strikerX);
+      const initialStriker = createStriker(activeTurn, intent.strikerX);
       const impulse = 9.0 + intent.power * 22.0;
       initialStriker.vx = Math.cos(intent.angle) * impulse;
       initialStriker.vy = Math.sin(intent.angle) * impulse;
@@ -294,7 +301,7 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
           // Simulation Finished -> Evaluate Turn Outcome
           isSimulatingRef.current = false;
           setIsMoving(false);
-          finishTurnEvaluation(currentPieces, currentStrikerState);
+          finishTurnEvaluation(currentPieces, currentStrikerState, activeTurn);
         }
       };
 
@@ -304,9 +311,13 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
   );
 
   // ── Turn Resolution & Rule Evaluation ───────────────────────────
-  const finishTurnEvaluation = (finalPieces: CarromPiece[], finalStriker: CarromPiece) => {
+  const finishTurnEvaluation = (
+    finalPieces: CarromPiece[],
+    finalStriker: CarromPiece,
+    forTurn: 'player1' | 'player2'
+  ) => {
     const pocketed = pocketedInCurrentShotRef.current;
-    const isP1 = currentTurn === 'player1';
+    const isP1 = forTurn === 'player1';
     const myType = isP1 ? player1.assignedType : player2.assignedType;
     const oppType = isP1 ? player2.assignedType : player1.assignedType;
 
@@ -375,7 +386,7 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
       setStatusMessage(`🎯 Nice Pocket! ${isP1 ? player1.name : player2.name} earns an EXTRA TURN!`);
       setIsAiming(true);
       setStrikerSliderX(0.5);
-      setStriker(createStriker(currentTurn, 0.5));
+      setStriker(createStriker(forTurn, 0.5));
       return;
     } else {
       setStatusMessage(`${isP1 ? player2.name : player1.name}'s turn to strike.`);
@@ -407,8 +418,9 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
   useEffect(() => {
     const unsubMsg = carromRoomManager.onMessage((msg) => {
       if (msg.type === 'STRIKE_ACTION') {
-        // Opponent took a shot
-        handleExecuteShot(msg.intent, false);
+        // Opponent took a shot — trust the seat they sent, not our local currentTurn,
+        // so a client that fell out of sync self-corrects instead of staying stuck.
+        handleExecuteShot(msg.intent, false, msg.seat);
       } else if (msg.type === 'SYNC_STATE') {
         setWinner(msg.snapshot.winner);
         setStatusMessage(msg.snapshot.statusText);
@@ -458,11 +470,22 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
   // Turn Countdown Timer
   useEffect(() => {
     if (isMoving || winner || gameStage !== 'playing') return;
+    // Online: only the client whose actual turn it is may act on its own timeout.
+    // The old code flipped currentTurn locally on BOTH peers' timers with no
+    // broadcast, which desynced the two clients' turn state (leading to the
+    // wrong player's baseline appearing at the bottom, or the game freezing).
+    if (playType === 'online' && (myOnlineSeat || 'player1') !== currentTurn) return;
     const interval = setInterval(() => {
       setTurnTimer((t) => {
         if (t <= 1) {
-          // Time-out: Auto pass turn
-          setCurrentTurn((prev) => (prev === 'player1' ? 'player2' : 'player1'));
+          if (playType === 'online') {
+            // Fire a weak default shot so the timeout goes through the normal
+            // broadcast path and both peers stay in sync.
+            const angle = currentTurn === 'player1' ? -Math.PI / 2 : Math.PI / 2;
+            handleExecuteShot({ strikerX: 0.5, angle, power: 0.3 }, true);
+          } else {
+            setCurrentTurn((prev) => (prev === 'player1' ? 'player2' : 'player1'));
+          }
           setStatusMessage('Time out! Turn passed.');
           return 25;
         }
@@ -470,7 +493,7 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [isMoving, winner, currentTurn, gameStage]);
+  }, [isMoving, winner, currentTurn, gameStage, playType, myOnlineSeat, handleExecuteShot]);
 
   // Is it my turn to play?
   const activePlayer = currentTurn === 'player1' ? player1 : player2;
@@ -604,8 +627,8 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
         </div>
 
         {/* Current Mode Badge */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-950/80 border border-slate-800 text-[10px] font-orbitron font-bold">
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-950/80 border border-slate-800 text-[9px] font-orbitron font-bold whitespace-nowrap shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse shrink-0" />
           <span className="text-slate-300">
             {playType === 'vs-ai'
               ? `vs AI (${aiDifficulty.toUpperCase()})`
@@ -616,7 +639,7 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
         </div>
 
         {/* Quick Tools */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={() => {

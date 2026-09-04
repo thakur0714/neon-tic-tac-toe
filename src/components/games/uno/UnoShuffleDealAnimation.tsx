@@ -154,10 +154,10 @@ export const UnoShuffleDealAnimation: React.FC<UnoShuffleDealAnimationProps> = (
   return (
     <div className="fixed inset-0 z-40 flex flex-col items-center justify-between p-4 bg-slate-950/95 backdrop-blur-md select-none overflow-hidden">
       {/* Top Header with Status (Clean, no skip button) */}
-      <div className="w-full flex items-center justify-between z-50">
-        <div className="flex items-center gap-2 text-cyan-400">
-          <Sparkles className="w-4 h-4 animate-spin text-pink-400" style={{ animationDuration: '3s' }} />
-          <span className="font-orbitron font-bold text-xs sm:text-sm tracking-wider">
+      <div className="w-full flex items-center justify-between gap-2 z-50">
+        <div className="flex items-center gap-2 text-cyan-400 min-w-0">
+          <Sparkles className="w-4 h-4 animate-spin text-pink-400 shrink-0" style={{ animationDuration: '3s' }} />
+          <span className="font-orbitron font-bold text-[10px] sm:text-sm tracking-wider whitespace-nowrap truncate">
             {phase === 'shuffling'
               ? shuffleStage === 'cut'
                 ? 'CUTTING DECK IN 3D...'
@@ -172,8 +172,8 @@ export const UnoShuffleDealAnimation: React.FC<UnoShuffleDealAnimationProps> = (
           </span>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/90 border border-cyan-500/30 text-[10px] font-orbitron text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.2)]">
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-slate-900/90 border border-cyan-500/30 text-[9px] sm:text-[10px] font-orbitron text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.2)] whitespace-nowrap shrink-0">
+          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shrink-0" />
           <span>CYBER UNO DEALER</span>
         </div>
       </div>

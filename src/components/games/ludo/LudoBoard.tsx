@@ -28,7 +28,7 @@ import {
   Bot,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { triggerHaptic } from "../../../utils/audio";
+import { triggerHaptic, playDiceRollSound } from "../../../utils/audio";
 
 interface LudoBoardProps {
   players: LudoPlayer[];
@@ -41,6 +41,22 @@ interface LudoBoardProps {
   onRollDice?: () => void;
   theme?: LudoThemeMode;
 }
+
+// Which outer board corner each base panel touches, for the rounded "floating card" look
+const BASE_CORNER_RADIUS: Record<LudoColor, string> = {
+  red: "22% 6px 6px 6px",
+  green: "6px 22% 6px 6px",
+  blue: "6px 6px 6px 22%",
+  yellow: "6px 6px 22% 6px",
+};
+
+// Royal Gold & Marble: deep faceted gemstone tones per color (dark + light variants)
+const JEWEL_THEME: Record<LudoColor, { deep: string; mid: string; bright: string; name: string }> = {
+  red: { deep: "#5c0a1c", mid: "#a3142f", bright: "#ff4d6d", name: "Ruby" },
+  green: { deep: "#04452f", mid: "#0a7d54", bright: "#34e3a5", name: "Emerald" },
+  blue: { deep: "#0b2c6b", mid: "#1554c2", bright: "#5aa8ff", name: "Sapphire" },
+  yellow: { deep: "#6b4a06", mid: "#c98a12", bright: "#ffd85c", name: "Topaz" },
+};
 
 // 1-Based CSS Grid Spans for the 6x6 Base Backgrounds
 const BASE_BACKGROUND_SPANS: Record<LudoColor, { row: string; col: string }> = {
@@ -157,8 +173,10 @@ const BaseTerminalDice: React.FC<{
   onRoll,
 }) => {
   // Never default to 6! Keep track of the last genuine roll face
-  const [tumbleFace, setTumbleFace] = useState<number>(1);
   const [lastFace, setLastFace] = useState<number>(diceValue && diceValue >= 1 && diceValue <= 6 ? diceValue : 1);
+  const [justLanded, setJustLanded] = useState(false);
+  // Extra whole turns piled onto the base spin so every roll keeps tumbling forward, never snapping backward
+  const spinTurnsRef = React.useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     if (diceValue && diceValue >= 1 && diceValue <= 6) {
@@ -166,16 +184,50 @@ const BaseTerminalDice: React.FC<{
     }
   }, [diceValue]);
 
+  const wasRolling = React.useRef(false);
   useEffect(() => {
-    if (!isRolling) return;
-    const id = setInterval(
-      () => setTumbleFace(Math.floor(Math.random() * 6) + 1),
-      65,
-    );
-    return () => clearInterval(id);
+    if (isRolling && !wasRolling.current) {
+      playDiceRollSound(true);
+      // Randomize each roll's spin path so it never repeats the exact same 3D flip
+      spinTurnsRef.current = {
+        x: 720 + Math.floor(Math.random() * 3) * 360,
+        y: 1080 + Math.floor(Math.random() * 3) * 360,
+      };
+    }
+    if (wasRolling.current && !isRolling) {
+      setJustLanded(true);
+      const t = setTimeout(() => setJustLanded(false), 260);
+      wasRolling.current = isRolling;
+      return () => clearTimeout(t);
+    }
+    wasRolling.current = isRolling;
   }, [isRolling]);
 
-  const dieFace = isRolling ? tumbleFace : (diceValue ?? lastFace ?? 1);
+  const dieFace = diceValue ?? lastFace ?? 1;
+
+  // Standard die-face show rotations (opposite faces sum to 7), landing exactly on the true value
+  const FACE_SHOW_ROTATION: Record<number, { x: number; y: number }> = {
+    1: { x: 0, y: 0 },
+    2: { x: -90, y: 0 },
+    3: { x: 0, y: -90 },
+    4: { x: 0, y: 90 },
+    5: { x: 90, y: 0 },
+    6: { x: 180, y: 0 },
+  };
+  const showRot = FACE_SHOW_ROTATION[dieFace] ?? FACE_SHOW_ROTATION[1];
+  const cubeTransform = isRolling
+    ? `rotateX(${spinTurnsRef.current.x}deg) rotateY(${spinTurnsRef.current.y}deg)`
+    : `rotateX(${showRot.x}deg) rotateY(${showRot.y}deg)`;
+
+  // Face layout: front=1, bottom=2, left=3, right=4, top=5, back=6
+  const FACE_DEFS: Array<{ value: number; transform: string }> = [
+    { value: 1, transform: "translateZ(var(--dice-half))" },
+    { value: 2, transform: "rotateX(90deg) translateZ(var(--dice-half))" },
+    { value: 3, transform: "rotateY(-90deg) translateZ(var(--dice-half))" },
+    { value: 4, transform: "rotateY(90deg) translateZ(var(--dice-half))" },
+    { value: 5, transform: "rotateX(-90deg) translateZ(var(--dice-half))" },
+    { value: 6, transform: "rotateY(180deg) translateZ(var(--dice-half))" },
+  ];
 
   return (
     <div className="flex h-full w-full items-center justify-center p-0.5 select-none">
@@ -193,53 +245,62 @@ const BaseTerminalDice: React.FC<{
           maxWidth: 52,
           maxHeight: 52,
           aspectRatio: "1 / 1",
-          perspective: 300,
+          perspective: 220,
+          ["--dice-size" as string]: "clamp(30px, 8.6vw, 52px)",
+          ["--dice-half" as string]: "calc(clamp(30px, 8.6vw, 52px) / 2)",
         }}
       >
-        {/* Pulsing beacon ring when it's your turn to roll */}
+        {/* Pulsing beacon ring when it's your turn to roll (pure CSS: immune to re-render restarts) */}
         {canRoll && !isRolling && (
-          <motion.span
-            className="pointer-events-none absolute -inset-1.5 rounded-2xl"
+          <span
+            className="ludo-beacon-pulse pointer-events-none absolute -inset-1.5 rounded-2xl"
             style={{ backgroundColor: colTheme.neonColor }}
-            animate={{ opacity: [0.55, 0.1, 0.55], scale: [0.95, 1.25, 0.95] }}
-            transition={{ duration: 1.3, repeat: Infinity, ease: "easeInOut" }}
           />
         )}
 
-        {/* 3D Pure White Acrylic Dice Cube */}
-        <motion.div
-          className="relative h-full w-full rounded-xl sm:rounded-2xl"
+        {/* TRUE 3D SIX-FACED DICE CUBE */}
+        <div
+          className="relative"
           style={{
+            width: "var(--dice-size)",
+            height: "var(--dice-size)",
             transformStyle: "preserve-3d",
-            // AUTHENTIC WHITE LUDO DICE BODY
-            background: "linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 55%, #E2E8F0 100%)",
-            border: "2px solid #CBD5E1",
-            boxShadow: canRoll && !isRolling
-              ? `0 8px 18px -2px rgba(0,0,0,0.5), 0 0 14px ${colTheme.neonColor}70, inset 0 2px 4px #FFFFFF, inset 0 -3px 5px rgba(0,0,0,0.12)`
-              : "0 6px 14px -2px rgba(0,0,0,0.4), inset 0 2px 4px #FFFFFF, inset 0 -3px 5px rgba(0,0,0,0.12)",
+            transform: cubeTransform,
+            transition: isRolling
+              ? "transform 0.62s cubic-bezier(0.32, 0.1, 0.4, 1)"
+              : "transform 0.55s cubic-bezier(0.22, 1.6, 0.4, 1)",
           }}
-          animate={
-            isRolling
-              ? {
-                  rotateX: [0, 180, 360, 540, 720],
-                  rotateY: [0, -180, -360, -540, -720],
-                  rotateZ: [0, 45, -45, 90, 0],
-                  scale: [1, 1.12, 0.94, 1.08, 1],
-                }
-              : { rotateX: 0, rotateY: 0, rotateZ: 0, scale: 1 }
-          }
-          transition={
-            isRolling
-              ? { duration: 0.5, repeat: Infinity, ease: "linear" }
-              : { type: "spring", stiffness: 450, damping: 20 }
-          }
         >
-          <div className="absolute inset-0">
-            {renderWhiteDicePips(dieFace, color)}
-          </div>
-          {/* Glossy top-light sheen */}
-          <div className="absolute inset-x-1 top-0.5 h-1/3 rounded-t-xl bg-gradient-to-b from-white/90 to-transparent pointer-events-none opacity-80" />
-        </motion.div>
+          {FACE_DEFS.map((face) => (
+            <div
+              key={face.value}
+              className="absolute inset-0 rounded-lg sm:rounded-xl"
+              style={{
+                transform: face.transform,
+                transformStyle: "preserve-3d",
+                background: "linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 55%, #E2E8F0 100%)",
+                border: "1.5px solid #CBD5E1",
+                boxShadow:
+                  justLanded && !isRolling
+                    ? `inset 0 2px 4px #FFFFFF, inset 0 -3px 5px rgba(0,0,0,0.12), 0 0 16px ${colTheme.neonColor}aa`
+                    : "inset 0 2px 4px #FFFFFF, inset 0 -3px 5px rgba(0,0,0,0.12)",
+                backfaceVisibility: "hidden",
+              }}
+            >
+              {renderWhiteDicePips(face.value, color)}
+              <div className="absolute inset-x-1 top-0.5 h-1/3 rounded-t-lg bg-gradient-to-b from-white/90 to-transparent pointer-events-none opacity-80" />
+            </div>
+          ))}
+        </div>
+
+        {/* Contact shadow that breathes with the tumble for a grounded 3D feel */}
+        <div
+          className={`absolute -bottom-1 left-1/2 -translate-x-1/2 h-1.5 rounded-full pointer-events-none ${isRolling ? "ludo-dice-shadow-pulse" : ""}`}
+          style={{
+            width: "70%",
+            background: "radial-gradient(ellipse, rgba(0,0,0,0.45) 0%, transparent 75%)",
+          }}
+        />
       </motion.button>
     </div>
   );
@@ -277,96 +338,69 @@ const StaticBoardTrackCells = React.memo<{
           const homePathInfo = STATIC_HOME_PATH_MAP.get(cellKey);
 
           let cellStyle: React.CSSProperties = {
-            background: isCyber ? "#0a1120" : "#fbf5e6",
+            background: isCyber
+              ? "linear-gradient(160deg, #16141d 0%, #0c0b11 100%)"
+              : "linear-gradient(160deg, #fffaf0 0%, #f0e8d6 100%)",
             borderColor: isCyber
-              ? "rgba(80,110,160,0.14)"
-              : "rgba(60,45,25,0.28)",
+              ? "rgba(212,175,55,0.16)"
+              : "rgba(180,140,50,0.25)",
             boxShadow: isCyber
-              ? "inset 0 0 6px rgba(0,0,0,0.5)"
-              : "inset 0 0 3px rgba(0,0,0,0.12)",
+              ? "inset 0 0 5px rgba(0,0,0,0.6)"
+              : "inset 0 0 3px rgba(120,90,40,0.15)",
           };
           let content: React.ReactNode = null;
 
           if (homePathInfo) {
-            const themeCol = LUDO_COLOR_THEMES[homePathInfo.color];
+            const jewel = JEWEL_THEME[homePathInfo.color];
             cellStyle = {
-              background: isCyber
-                ? `linear-gradient(180deg, ${themeCol.neonColor}44, ${themeCol.neonColor}22)`
-                : `linear-gradient(180deg, ${themeCol.classicColor}, ${themeCol.classicDark})`,
-              borderColor: isCyber
-                ? `${themeCol.neonColor}66`
-                : themeCol.classicBorder,
-              boxShadow: isCyber
-                ? `inset 0 0 8px ${themeCol.neonColor}55`
-                : "inset 0 1px 2px rgba(255,255,255,0.35)",
+              background: `linear-gradient(180deg, ${jewel.mid} 0%, ${jewel.deep} 100%)`,
+              borderColor: "rgba(212,175,55,0.55)",
+              boxShadow: `inset 0 0 8px ${jewel.deep}aa, inset 0 1px 1px rgba(255,255,255,0.25)`,
               opacity: isActive(homePathInfo.color) ? 1 : 0.22,
             };
           } else if (trackInfo) {
             if (trackInfo.isStart && trackInfo.startColor) {
-              const themeCol = LUDO_COLOR_THEMES[trackInfo.startColor];
+              const jewel = JEWEL_THEME[trackInfo.startColor];
               cellStyle = {
-                background: isCyber
-                  ? `radial-gradient(circle, ${themeCol.neonColor}55, ${themeCol.neonColor}22)`
-                  : `linear-gradient(180deg, ${themeCol.classicColor}, ${themeCol.classicDark})`,
-                borderColor: isCyber
-                  ? themeCol.neonColor
-                  : themeCol.classicBorder,
-                boxShadow: isCyber
-                  ? `inset 0 0 10px ${themeCol.neonColor}`
-                  : "inset 0 1px 2px rgba(255,255,255,0.4)",
+                background: `radial-gradient(circle, ${jewel.bright} 0%, ${jewel.mid} 55%, ${jewel.deep} 100%)`,
+                borderColor: "#d4af37",
+                boxShadow: `inset 0 0 10px ${jewel.deep}, 0 0 6px ${jewel.bright}66`,
                 opacity: isActive(trackInfo.startColor) ? 1 : 0.3,
               };
               content = (
                 <Star
                   className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 drop-shadow"
-                  style={{
-                    color: "#fff",
-                    fill: isCyber ? themeCol.neonColor : "#ffffffcc",
-                  }}
+                  style={{ color: "#fff8e0", fill: "#fff8e0" }}
                 />
               );
             } else if (trackInfo.isSafe) {
               cellStyle = {
                 background: isCyber
-                  ? "radial-gradient(circle, #1c2740, #0a1120)"
-                  : "#f3e8c9",
-                borderColor: isCyber
-                  ? "rgba(251,191,36,0.5)"
-                  : "rgba(180,130,40,0.5)",
+                  ? "radial-gradient(circle, #2a2410, #17140a)"
+                  : "#f6e8bf",
+                borderColor: "#d4af37",
                 boxShadow: isCyber
-                  ? "inset 0 0 8px rgba(251,191,36,0.35)"
-                  : "inset 0 0 4px rgba(0,0,0,0.15)",
+                  ? "inset 0 0 8px rgba(212,175,55,0.4)"
+                  : "inset 0 0 4px rgba(120,90,20,0.25)",
               };
               content = (
                 <Star className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-amber-400 fill-amber-400 drop-shadow" />
               );
             } else if (r === 7 && c === 0)
               content = (
-                <ArrowRight
-                  className="w-2.5 h-2.5 sm:w-3 sm:h-3"
-                  style={{ color: LUDO_COLOR_THEMES.red.neonBorder }}
-                />
+                <ArrowRight className="w-2.5 h-2.5 sm:w-3 sm:h-3" style={{ color: "#d4af37" }} />
               );
             else if (r === 0 && c === 7)
               content = (
-                <ArrowDown
-                  className="w-2.5 h-2.5 sm:w-3 sm:h-3"
-                  style={{ color: LUDO_COLOR_THEMES.green.neonBorder }}
-                />
+                <ArrowDown className="w-2.5 h-2.5 sm:w-3 sm:h-3" style={{ color: "#d4af37" }} />
               );
             else if (r === 7 && c === 14)
               content = (
-                <ArrowLeft
-                  className="w-2.5 h-2.5 sm:w-3 sm:h-3"
-                  style={{ color: LUDO_COLOR_THEMES.yellow.neonBorder }}
-                />
+                <ArrowLeft className="w-2.5 h-2.5 sm:w-3 sm:h-3" style={{ color: "#d4af37" }} />
               );
             else if (r === 14 && c === 7)
               content = (
-                <ArrowUp
-                  className="w-2.5 h-2.5 sm:w-3 sm:h-3"
-                  style={{ color: LUDO_COLOR_THEMES.blue.neonBorder }}
-                />
+                <ArrowUp className="w-2.5 h-2.5 sm:w-3 sm:h-3" style={{ color: "#d4af37" }} />
               );
           }
 
@@ -445,131 +479,90 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
     <div className="w-full h-full flex items-center justify-center p-0.5 sm:p-2 select-none">
       {/* Master Board Container - Maximized for Mobile Screen Real Estate */}
       <div
-        className={`w-full max-w-[min(98vw,calc(100dvh-175px))] sm:max-w-[min(92vw,68vh)] aspect-square rounded-2xl sm:rounded-3xl p-1 sm:p-2 relative shadow-2xl transition-all duration-300 ${
-          isCyber
-            ? "border-2 border-slate-700/70"
-            : "border-[4px] sm:border-[5px] border-[#5b3b21]"
-        }`}
+        className={`w-full max-w-[min(98vw,calc(100dvh-175px))] sm:max-w-[min(92vw,68vh)] aspect-square rounded-2xl sm:rounded-3xl p-1.5 sm:p-2.5 relative shadow-2xl transition-all duration-300 overflow-hidden border-[3px] sm:border-[4px] ${isCyber ? "ludo-marble-dark border-amber-400/80" : "ludo-marble-light border-amber-600/70"}`}
         style={{
-          background: isCyber
-            ? "radial-gradient(circle at 50% 0%, #0f1626 0%, #070a12 55%, #04060c 100%)"
-            : "linear-gradient(150deg, #8a5a30 0%, #6b4423 45%, #4d3018 100%)",
-          boxShadow: isCyber
-            ? "0 0 40px rgba(6,182,212,0.18), inset 0 0 30px rgba(0,0,0,0.6)"
-            : "0 18px 40px rgba(0,0,0,0.55), inset 0 2px 4px rgba(255,255,255,0.15)",
+          boxShadow:
+            "0 0 0 1px rgba(212,175,55,0.9), 0 0 0 5px rgba(0,0,0,0.35), 0 0 0 6px rgba(212,175,55,0.5), 0 20px 44px rgba(0,0,0,0.55), inset 0 0 30px rgba(0,0,0,0.45)",
         }}
       >
+        {/* Ornate gold corner medallions */}
+        <div className="ludo-gold-corner absolute top-2 left-2 z-40" />
+        <div className="ludo-gold-corner absolute top-2 right-2 z-40" />
+        <div className="ludo-gold-corner absolute bottom-2 left-2 z-40" />
+        <div className="ludo-gold-corner absolute bottom-2 right-2 z-40" />
+
+        {/* Glossy full-board sheen for a polished lacquer finish */}
+        <div className="absolute inset-0 pointer-events-none z-30 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-white/10 via-transparent to-black/15" />
         {/* Strict 15x15 CSS Grid System (Zero Gap to Guarantee Exact Mathematical Percentage Alignment) */}
         <div
+          className={`w-full h-full relative rounded-xl sm:rounded-2xl overflow-hidden border-2 ${isCyber ? "ludo-marble-dark border-amber-500/40" : "ludo-marble-light border-amber-600/40"}`}
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(15, minmax(0, 1fr))",
             gridTemplateRows: "repeat(15, minmax(0, 1fr))",
-            background: isCyber
-              ? "radial-gradient(circle at 50% 50%, #0a0f1d 0%, #05070e 100%)"
-              : "#f7edd8",
           }}
-          className={`w-full h-full relative rounded-xl sm:rounded-2xl overflow-hidden border ${isCyber ? "border-slate-800" : "border-[#c8b78a]"}`}
         >
-          {/* 1. 6x6 BASE BACKGROUND PANELS */}
+          {/* 1. 6x6 BASE BACKGROUND PANELS — faceted jewel plates in a gold bezel */}
           {(["red", "green", "blue", "yellow"] as LudoColor[]).map((color) => {
-            const ct = LUDO_COLOR_THEMES[color];
+            const jewel = JEWEL_THEME[color];
             const seatActive = isActive(color);
             const active = seatActive && currentTurnColor === color;
             return (
-              <motion.div
+              <div
                 key={`base_bg_${color}`}
                 style={{
                   gridRow: BASE_BACKGROUND_SPANS[color].row,
                   gridColumn: BASE_BACKGROUND_SPANS[color].col,
-                  opacity: seatActive ? 1 : 0.18,
+                  opacity: seatActive ? 1 : 0.2,
+                  borderRadius: BASE_CORNER_RADIUS[color],
                   background: !seatActive
                     ? isCyber
-                      ? "#0b0f1a"
-                      : "#e9dfc4"
-                    : isCyber
-                      ? `radial-gradient(circle at 50% 40%, ${ct.neonColor}2e 0%, #05070e 72%)`
-                      : `linear-gradient(150deg, ${ct.classicColor} 0%, ${ct.classicDark} 100%)`,
-                  borderColor: !seatActive
-                    ? isCyber
-                      ? "#1e293b"
-                      : "#cbbf9d"
-                    : isCyber
-                      ? active
-                        ? ct.neonColor
-                        : `${ct.neonColor}40`
-                      : ct.classicBorder,
+                      ? "#141119"
+                      : "#e8ddc4"
+                    : `radial-gradient(circle at 50% 28%, ${jewel.bright}30 0%, transparent 55%), linear-gradient(160deg, ${jewel.mid} 0%, ${jewel.deep} 100%)`,
+                  borderColor: !seatActive ? "rgba(212,175,55,0.25)" : active ? "#ffd85c" : "rgba(212,175,55,0.65)",
+                  boxShadow: !seatActive
+                    ? "none"
+                    : active
+                      ? `0 0 24px ${jewel.bright}55, inset 0 0 22px rgba(0,0,0,0.45), inset 0 1px 1px rgba(255,255,255,0.3)`
+                      : `inset 0 0 22px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.2), 0 4px 12px rgba(0,0,0,0.35)`,
+                  ["--glow-color" as string]: `${jewel.bright}99`,
                 }}
-                className="rounded-xl sm:rounded-2xl border-2 transition-colors duration-300"
-                animate={
-                  active
-                    ? {
-                        boxShadow: isCyber
-                          ? [
-                              `0 0 8px ${ct.neonColor}40`,
-                              `0 0 24px ${ct.neonColor}99`,
-                              `0 0 8px ${ct.neonColor}40`,
-                            ]
-                          : [
-                              `inset 0 0 0 0 ${ct.classicColor}00`,
-                              `inset 0 0 22px 2px rgba(255,255,255,0.35)`,
-                              `inset 0 0 0 0 ${ct.classicColor}00`,
-                            ],
-                      }
-                    : {
-                        boxShadow: isCyber
-                          ? `0 0 0px ${ct.neonColor}00`
-                          : "inset 0 0 18px rgba(0,0,0,0.35)",
-                      }
-                }
-                transition={{
-                  duration: 2,
-                  repeat: active ? Infinity : 0,
-                  ease: "easeInOut",
-                }}
-              />
+                className={`relative overflow-hidden border-2 sm:border-[3px] transition-colors duration-300 ${
+                  active ? "ludo-glow-pulse" : ""
+                }`}
+              >
+                {/* Faceted gem highlight — diagonal sheen like light hitting a cut stone */}
+                {seatActive && (
+                  <div
+                    className="absolute inset-x-2 top-1 h-2/5 pointer-events-none opacity-35"
+                    style={{
+                      borderRadius: "inherit",
+                      background: "linear-gradient(180deg, rgba(255,255,255,0.9) 0%, transparent 100%)",
+                    }}
+                  />
+                )}
+              </div>
             );
           })}
 
           {/* 2. CENTER 3x3 VICTORY EMBLEM (Rows 7..9, Cols 7..9) */}
           <div
             style={{ gridRow: "7 / span 3", gridColumn: "7 / span 3" }}
-            className={`relative overflow-hidden border flex items-center justify-center z-10 ${isCyber ? "bg-slate-950 border-slate-700/80" : "bg-[#f7edd8] border-[#c8b78a]"}`}
+            className={`relative overflow-hidden border-2 border-amber-400/70 flex items-center justify-center z-10 ${isCyber ? "bg-slate-950" : "bg-[#f7edd8]"}`}
           >
             <svg
               className="w-full h-full absolute inset-0"
               viewBox="0 0 100 100"
             >
-              <polygon
-                points="0,0 50,50 0,100"
-                fill={isCyber ? "#EF4444" : "#DC2626"}
-                fillOpacity={isCyber ? 0.45 : 0.85}
-                stroke={isCyber ? "#F87171" : "#991B1B"}
-                strokeWidth="1.5"
-              />
-              <polygon
-                points="0,0 50,50 100,0"
-                fill={isCyber ? "#10B981" : "#059669"}
-                fillOpacity={isCyber ? 0.45 : 0.85}
-                stroke={isCyber ? "#34D399" : "#065F46"}
-                strokeWidth="1.5"
-              />
-              <polygon
-                points="100,0 50,50 100,100"
-                fill={isCyber ? "#F59E0B" : "#D97706"}
-                fillOpacity={isCyber ? 0.45 : 0.85}
-                stroke={isCyber ? "#FBBF24" : "#92400E"}
-                strokeWidth="1.5"
-              />
-              <polygon
-                points="0,100 50,50 100,100"
-                fill={isCyber ? "#06B6D4" : "#2563EB"}
-                fillOpacity={isCyber ? 0.45 : 0.85}
-                stroke={isCyber ? "#22D3EE" : "#1E40AF"}
-                strokeWidth="1.5"
-              />
+              <polygon points="0,0 50,50 0,100" fill={JEWEL_THEME.red.mid} fillOpacity={0.85} stroke={JEWEL_THEME.red.bright} strokeWidth="1.5" />
+              <polygon points="0,0 50,50 100,0" fill={JEWEL_THEME.green.mid} fillOpacity={0.85} stroke={JEWEL_THEME.green.bright} strokeWidth="1.5" />
+              <polygon points="100,0 50,50 100,100" fill={JEWEL_THEME.yellow.mid} fillOpacity={0.85} stroke={JEWEL_THEME.yellow.bright} strokeWidth="1.5" />
+              <polygon points="0,100 50,50 100,100" fill={JEWEL_THEME.blue.mid} fillOpacity={0.85} stroke={JEWEL_THEME.blue.bright} strokeWidth="1.5" />
+              <line x1="0" y1="0" x2="100" y2="100" stroke="#d4af37" strokeWidth="0.8" strokeOpacity="0.6" />
+              <line x1="100" y1="0" x2="0" y2="100" stroke="#d4af37" strokeWidth="0.8" strokeOpacity="0.6" />
             </svg>
-            <div className="relative z-10 w-5 h-5 sm:w-8 sm:h-8 rounded-full bg-slate-950/95 border-2 border-amber-400 flex items-center justify-center shadow-[0_0_12px_rgba(245,158,11,0.5)]">
+            <div className="ludo-hub-pulse relative z-10 w-5 h-5 sm:w-8 sm:h-8 rounded-full bg-slate-950/95 border-2 border-amber-400 flex items-center justify-center">
               <Trophy className="w-3 h-3 sm:w-4.5 sm:h-4.5 text-amber-400" />
             </div>
           </div>
@@ -585,36 +578,32 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
               <div
                 key={`nest_${color}_${idx}`}
                 style={{ gridRow: coord.r + 1, gridColumn: coord.c + 1 }}
-                className="w-full h-full flex items-center justify-center pointer-events-none z-15 p-0.5"
+                className="relative w-full h-full flex items-center justify-center pointer-events-none z-15 p-0.5"
               >
-                {/* Outer Concentric Socket */}
+                {/* Rotating gold dashed pedestal ring — ornate jewel-socket accent */}
+                <div
+                  className="ludo-pedestal-spin absolute w-full h-full max-w-[30px] max-h-[30px] sm:max-w-[38px] sm:max-h-[38px] rounded-full pointer-events-none"
+                  style={{ border: "1.5px dashed rgba(212,175,55,0.65)" }}
+                />
+                {/* Outer Gold Socket Rim */}
                 <div
                   className="w-full h-full max-w-[26px] max-h-[26px] sm:max-w-[34px] sm:max-h-[34px] rounded-full border-2 flex items-center justify-center transition-all"
                   style={{
-                    borderColor: isCyber
-                      ? `${colTheme.neonColor}90`
-                      : "#FFFFFF90",
-                    backgroundColor: isCyber ? "#090D18" : "#1E293B",
-                    boxShadow: isCyber
-                      ? `0 0 10px ${colTheme.neonColor}50`
-                      : "none",
+                    borderColor: "rgba(212,175,55,0.75)",
+                    backgroundColor: isCyber ? "#100d16" : "#efe6cf",
+                    boxShadow: `0 0 8px rgba(212,175,55,0.4), inset 0 0 8px ${JEWEL_THEME[color].deep}88`,
                   }}
                 >
-                  {/* Inner Concentric Target Ring */}
+                  {/* Inner Jewel Setting */}
                   <div
                     className="w-3 h-3 sm:w-4.5 sm:h-4.5 rounded-full border flex items-center justify-center"
-                    style={{
-                      borderColor: isCyber
-                        ? `${colTheme.neonColor}70`
-                        : "#FFFFFF50",
-                    }}
+                    style={{ borderColor: "rgba(212,175,55,0.55)" }}
                   >
                     <div
-                      className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full"
+                      className="ludo-gem-shimmer w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full"
                       style={{
-                        backgroundColor: isCyber
-                          ? colTheme.neonColor
-                          : "#FFFFFF",
+                        backgroundColor: JEWEL_THEME[color].bright,
+                        boxShadow: `0 0 4px ${JEWEL_THEME[color].bright}`,
                       }}
                     />
                   </div>
@@ -640,31 +629,14 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
                 className="w-full h-full z-20 flex items-center justify-center p-0.5 select-none"
               >
                 {isTurn ? (
-                  <motion.div
-                    className="w-full h-full rounded-xl border-2 p-0.5 sm:p-1 flex items-center justify-center relative shadow-2xl"
+                  <div
+                    className="ludo-glow-pulse w-full h-full rounded-xl border-2 p-0.5 sm:p-1 flex items-center justify-center relative shadow-2xl"
                     style={{
                       background: isCyber
                         ? `radial-gradient(circle at 50% 40%, ${colTheme.neonColor}22, #05070ef2 70%)`
                         : `radial-gradient(circle at 50% 40%, #ffffff, ${colTheme.classicColor}22 75%)`,
-                      borderColor: colTheme.neonBorder,
-                    }}
-                    animate={{
-                      boxShadow: isCyber
-                        ? [
-                            `0 0 12px ${colTheme.neonColor}55`,
-                            `0 0 24px ${colTheme.neonColor}aa`,
-                            `0 0 12px ${colTheme.neonColor}55`,
-                          ]
-                        : [
-                            `0 0 0px ${colTheme.classicColor}00`,
-                            `0 0 14px ${colTheme.classicColor}66`,
-                            `0 0 0px ${colTheme.classicColor}00`,
-                          ],
-                    }}
-                    transition={{
-                      duration: 2,
-                      repeat: Infinity,
-                      ease: "easeInOut",
+                      borderColor: isCyber ? "rgba(251,191,36,0.7)" : colTheme.neonBorder,
+                      ["--glow-color" as string]: isCyber ? `${colTheme.neonColor}aa` : `${colTheme.classicColor}66`,
                     }}
                   >
                     <BaseTerminalDice
@@ -698,7 +670,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
                               : "NEXT"}
                       </span>
                     </div>
-                  </motion.div>
+                  </div>
                 ) : (
                   <div
                     className="w-full h-full rounded-xl bg-slate-950/85 border border-slate-800 p-0.5 sm:p-1 flex flex-col items-center justify-center pointer-events-none transition-all"

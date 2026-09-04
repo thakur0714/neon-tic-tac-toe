@@ -358,7 +358,7 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
       <div className="absolute bottom-1/4 -right-16 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Navigation */}
-      <div className="shrink-0 w-full flex items-center justify-between z-10">
+      <div className="shrink-0 w-full flex items-center justify-between z-10 mb-2">
         <button
           onClick={() => {
             playClickSound(soundEnabled);
@@ -405,7 +405,7 @@ export const NeonConnect4: React.FC<NeonConnect4Props> = ({
       </div>
 
       {/* Top HUD Scoreboard */}
-      <div className="shrink-0 grid grid-cols-3 gap-1.5 w-full my-0.5 z-10">
+      <div className="shrink-0 grid grid-cols-3 gap-1.5 w-full mb-2 z-10">
         <div
           className={`p-1.5 rounded-xl border flex flex-col items-center transition-all ${
             currentPlayer === 'P1' && !winner

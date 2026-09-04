@@ -82,3 +82,97 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.9);
 }
+
+/* ── Ludo: pure-CSS pulse/spin animations ──
+   Driven by the compositor, not React state, so rapid re-renders during
+   token-hop animation never restart or stutter them. */
+@keyframes ludo-glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px var(--glow-color, transparent); }
+  50% { box-shadow: 0 0 24px var(--glow-color, transparent); }
+}
+.ludo-glow-pulse {
+  animation: ludo-glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ludo-glow-pulse-classic {
+  0%, 100% { box-shadow: inset 0 0 0 0 transparent; }
+  50% { box-shadow: inset 0 0 22px 2px rgba(255,255,255,0.35); }
+}
+.ludo-glow-pulse-classic {
+  animation: ludo-glow-pulse-classic 2s ease-in-out infinite;
+}
+
+@keyframes ludo-beacon-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(0.95); }
+  50% { opacity: 0.1; transform: scale(1.25); }
+}
+.ludo-beacon-pulse {
+  animation: ludo-beacon-pulse 1.3s ease-in-out infinite;
+}
+
+@keyframes ludo-dice-shadow-pulse {
+  0%, 100% { opacity: 0.35; transform: translateX(-50%) scaleX(1); }
+  50% { opacity: 0.12; transform: translateX(-50%) scaleX(0.6); }
+}
+.ludo-dice-shadow-pulse {
+  animation: ludo-dice-shadow-pulse 0.6s ease-in-out infinite;
+}
+
+/* ── Ludo: esports tournament chrome (dashed pedestal rings + gold hub pulse) ── */
+@keyframes ludo-pedestal-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.ludo-pedestal-spin {
+  animation: ludo-pedestal-spin 12s linear infinite;
+}
+
+@keyframes ludo-hub-pulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(251,191,36,0.55), inset 0 0 8px rgba(251,191,36,0.35); }
+  50% { box-shadow: 0 0 26px rgba(251,191,36,0.9), inset 0 0 12px rgba(251,191,36,0.6); }
+}
+.ludo-hub-pulse {
+  animation: ludo-hub-pulse 2.2s ease-in-out infinite;
+}
+
+/* ── Ludo: Royal Gold & Marble theme ── */
+.ludo-marble-dark {
+  background-color: #0e0d12;
+  background-image:
+    radial-gradient(ellipse 60% 40% at 15% 20%, rgba(255,255,255,0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 35% at 85% 15%, rgba(255,255,255,0.04) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 60% 85%, rgba(255,255,255,0.045) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 60% at 10% 80%, rgba(255,255,255,0.035) 0%, transparent 55%),
+    linear-gradient(125deg, transparent 48%, rgba(255,255,255,0.03) 49%, transparent 51%),
+    linear-gradient(35deg, transparent 47%, rgba(255,255,255,0.025) 49%, transparent 52%),
+    radial-gradient(circle at 50% 50%, #17151d 0%, #0a0910 100%);
+}
+.ludo-marble-light {
+  background-color: #f4efe4;
+  background-image:
+    radial-gradient(ellipse 60% 40% at 15% 20%, rgba(120,110,90,0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 35% at 85% 15%, rgba(120,110,90,0.08) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 60% 85%, rgba(120,110,90,0.09) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 60% at 10% 80%, rgba(120,110,90,0.07) 0%, transparent 55%),
+    linear-gradient(125deg, transparent 48%, rgba(140,120,90,0.10) 49%, transparent 51%),
+    linear-gradient(35deg, transparent 47%, rgba(140,120,90,0.08) 49%, transparent 52%),
+    radial-gradient(circle at 50% 50%, #faf6ec 0%, #ede4d1 100%);
+}
+
+/* Ornate gold corner flourish, rotated diamond with inner gem */
+.ludo-gold-corner {
+  width: 14px;
+  height: 14px;
+  background: linear-gradient(145deg, #fff6d8, #d4af37 45%, #8a6a1e 100%);
+  transform: rotate(45deg);
+  box-shadow: 0 0 8px rgba(212,175,55,0.7), inset 0 1px 1px rgba(255,255,255,0.8), inset 0 -1px 2px rgba(0,0,0,0.35);
+  border-radius: 2px;
+}
+
+@keyframes ludo-gem-shimmer {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+.ludo-gem-shimmer {
+  animation: ludo-gem-shimmer 2.4s ease-in-out infinite;
+}

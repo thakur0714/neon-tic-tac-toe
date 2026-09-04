@@ -154,7 +154,7 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
       </div>
 
       {/* Center Interactive Setup Panel */}
-      <div className="my-auto py-2 space-y-3.5 max-w-sm mx-auto w-full">
+      <div className="my-auto py-3 space-y-5 max-w-sm mx-auto w-full">
         {/* Banner Card */}
         <div className="p-3 rounded-2xl bg-gradient-to-br from-purple-950/60 via-slate-900 to-slate-950 border border-purple-500/40 text-center relative overflow-hidden shadow-lg">
           <div className="flex justify-center gap-2 mb-1.5">
@@ -177,7 +177,7 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
         </div>
 
         {/* 1. Play Mode Selector Tabs (vs AI, Pass & Play, Online Room) */}
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <label className="text-xs font-orbitron font-bold text-slate-300 flex items-center justify-between">
             <span className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
@@ -187,7 +187,7 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
               {playType === 'vs-ai' ? '1v1 BOT' : playType === 'pass-and-play' ? 'LOCAL PASS' : 'ONLINE PEER'}
             </span>
           </label>
-          <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+          <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
             {MODES.map((m) => {
               const active = playType === m.id;
               return (
@@ -197,7 +197,7 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
                     playClickSound(soundEnabled);
                     setPlayType(m.id);
                   }}
-                  className={`p-2 sm:p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden ${
+                  className={`p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden ${
                     active
                       ? 'bg-slate-900 border-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
                       : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -232,12 +232,12 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
 
         {/* 2. Player Count Selection (for vs-ai and pass-and-play) */}
         {playType !== 'online' && (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <label className="text-xs font-orbitron font-bold text-slate-300 flex items-center gap-1.5">
               <Users className="w-3.5 h-3.5 text-cyan-400" />
               <span>NUMBER OF PLAYERS</span>
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2.5">
               {[
                 { count: 2, label: '2 PLAYERS', desc: playType === 'vs-ai' ? '1v1 vs Bot' : 'Head to Head' },
                 { count: 3, label: '3 PLAYERS', desc: playType === 'vs-ai' ? '2 AI Bots' : '3 Friends' },
@@ -249,7 +249,7 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
                     playClickSound(soundEnabled);
                     setPlayerCount(item.count);
                   }}
-                  className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
                     playerCount === item.count
                       ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.3)]'
                       : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
@@ -265,7 +265,7 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
 
         {/* 2B. Starting Cards Selection (3, 5, or 7 Cards) */}
         {playType !== 'online' && (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <label className="text-xs font-orbitron font-bold text-slate-300 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5 text-cyan-400" />
@@ -279,7 +279,7 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
                   : '🏆 7 Cards (Classic)'}
               </span>
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2.5">
               {[
                 { count: 3, label: '3 CARDS', tag: '⚡ Blitz', desc: 'Fast & thrilling' },
                 { count: 5, label: '5 CARDS', tag: '🔥 Speed', desc: 'Fast-paced duel' },
@@ -292,7 +292,7 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
                     playClickSound(soundEnabled);
                     setInitialCardCount(item.count);
                   }}
-                  className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
                     initialCardCount === item.count
                       ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.3)]'
                       : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
@@ -315,7 +315,7 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
                 <User className="w-3.5 h-3.5" />
                 <span>PLAYER NAMES</span>
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 {Array.from({ length: playerCount }).map((_, idx) => (
                   <div key={idx} className="space-y-1">
                     <span className="text-[9px] font-orbitron font-bold text-slate-400 flex items-center gap-1">
@@ -393,12 +393,12 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
 
         {/* 3B. vs AI Difficulty Selection */}
         {playType === 'vs-ai' && (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <label className="text-xs font-orbitron font-bold text-slate-300 flex items-center gap-1.5">
               <Cpu className="w-3.5 h-3.5 text-purple-400" />
               <span>AI BOT DIFFICULTY</span>
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2.5">
               {[
                 {
                   id: 'rookie' as UnoDifficulty,
@@ -431,7 +431,7 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
                     playClickSound(soundEnabled);
                     setDifficulty(item.id);
                   }}
-                  className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
                     difficulty === item.id
                       ? item.activeBg
                       : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'

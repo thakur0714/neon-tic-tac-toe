@@ -123,7 +123,7 @@ export const CarromSetupScreen: React.FC<CarromSetupScreenProps> = ({
   return (
     <div className="h-full w-full flex flex-col bg-slate-950 text-white select-none overflow-y-auto">
       {/* 1. Header Bar */}
-      <div className="w-full h-11 px-3 flex items-center justify-between border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-sm shrink-0">
+      <div className="w-full h-12 px-4 flex items-center justify-between border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-sm shrink-0">
         <button
           type="button"
           onClick={() => {
@@ -168,17 +168,17 @@ export const CarromSetupScreen: React.FC<CarromSetupScreenProps> = ({
       </div>
 
       {/* 2. Mode & Setup Body */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-4 py-5 max-w-md mx-auto w-full">
+      <div className="flex-1 flex flex-col items-center justify-center gap-6 px-4 py-6 max-w-md mx-auto w-full">
         {/* Play Type Selection */}
         <section className="w-full">
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center justify-between mb-2.5">
             <h3 className="text-[11px] font-orbitron font-bold tracking-widest text-slate-400 uppercase">
               Select Game Mode
             </h3>
             <span className="text-[10px] text-cyan-400 font-orbitron">2D Physics</span>
           </div>
 
-          <div className="grid grid-cols-1 gap-2">
+          <div className="grid grid-cols-1 gap-2.5">
             {MODES.map((m) => {
               const selected = playType === m.id;
               return (
@@ -189,7 +189,7 @@ export const CarromSetupScreen: React.FC<CarromSetupScreenProps> = ({
                     tap();
                     setPlayType(m.id);
                   }}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all cursor-pointer relative overflow-hidden ${
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl border text-left transition-all cursor-pointer relative overflow-hidden ${
                     selected
                       ? 'bg-cyan-500/15 border-cyan-400 text-white shadow-[0_0_16px_rgba(6,182,212,0.25)]'
                       : 'bg-slate-900/70 border-slate-800 text-slate-300 hover:border-slate-600'
@@ -214,7 +214,7 @@ export const CarromSetupScreen: React.FC<CarromSetupScreenProps> = ({
                         {m.tag}
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-400 truncate mt-0.5">{m.blurb}</p>
+                    <p className="text-[10px] text-slate-400 truncate mt-1">{m.blurb}</p>
                   </div>
                 </button>
               );
@@ -224,10 +224,10 @@ export const CarromSetupScreen: React.FC<CarromSetupScreenProps> = ({
 
         {/* Rule Type Selection (Disc Pool vs Classic) */}
         <section className="w-full">
-          <h3 className="text-[11px] font-orbitron font-bold tracking-widest text-slate-400 uppercase mb-1.5">
+          <h3 className="text-[11px] font-orbitron font-bold tracking-widest text-slate-400 uppercase mb-2.5">
             Board Rules
           </h3>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2.5">
             {GAME_MODES.map((gm) => {
               const selected = gameMode === gm.id;
               return (
@@ -238,19 +238,19 @@ export const CarromSetupScreen: React.FC<CarromSetupScreenProps> = ({
                     tap();
                     setGameMode(gm.id);
                   }}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                     selected
                       ? 'bg-amber-500/15 border-amber-400 text-white shadow-[0_0_14px_rgba(245,158,11,0.2)]'
                       : 'bg-slate-900/70 border-slate-800 text-slate-400 hover:border-slate-600'
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center justify-between mb-1.5 gap-1.5">
                     <span className="text-[12px] font-bold font-orbitron text-slate-200">{gm.label}</span>
-                    <span className="text-[8px] font-orbitron px-1 rounded bg-slate-800 text-amber-300">
+                    <span className="text-[8px] font-orbitron px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 whitespace-nowrap">
                       {gm.badge}
                     </span>
                   </div>
-                  <p className="text-[9.5px] text-slate-400 leading-tight">{gm.blurb}</p>
+                  <p className="text-[9.5px] text-slate-400 leading-relaxed">{gm.blurb}</p>
                 </button>
               );
             })}
@@ -259,13 +259,13 @@ export const CarromSetupScreen: React.FC<CarromSetupScreenProps> = ({
 
         {/* Mode-Specific Settings */}
         {playType === 'vs-ai' && (
-          <div className="w-full space-y-3 bg-slate-900/40 p-3 rounded-2xl border border-slate-800">
+          <div className="w-full space-y-4 bg-slate-900/40 p-4 rounded-2xl border border-slate-800">
             {/* AI Difficulty */}
             <div>
-              <h3 className="text-[10px] font-orbitron font-bold tracking-widest text-slate-400 uppercase mb-1.5">
+              <h3 className="text-[10px] font-orbitron font-bold tracking-widest text-slate-400 uppercase mb-2">
                 Bot Difficulty
               </h3>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-3 gap-2">
                 {DIFFICULTIES.map((d) => {
                   const selected = aiDifficulty === d.id;
                   return (
@@ -276,7 +276,7 @@ export const CarromSetupScreen: React.FC<CarromSetupScreenProps> = ({
                         tap();
                         setAiDifficulty(d.id);
                       }}
-                      className={`py-1.5 px-1 rounded-lg border text-center transition-all cursor-pointer ${
+                      className={`py-2 px-1 rounded-lg border text-center transition-all cursor-pointer ${
                         selected
                           ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
                           : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -292,17 +292,17 @@ export const CarromSetupScreen: React.FC<CarromSetupScreenProps> = ({
 
             {/* Play As Puck Color */}
             <div>
-              <h3 className="text-[10px] font-orbitron font-bold tracking-widest text-slate-400 uppercase mb-1.5">
+              <h3 className="text-[10px] font-orbitron font-bold tracking-widest text-slate-400 uppercase mb-2">
                 Your Coins & Striker Side
               </h3>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
                   onClick={() => {
                     tap();
                     setUserPuck('white');
                   }}
-                  className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all cursor-pointer ${
+                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer ${
                     userPuck === 'white'
                       ? 'bg-slate-800/90 border-cyan-400 text-white shadow-[0_0_12px_rgba(6,182,212,0.2)]'
                       : 'bg-slate-900/50 border-slate-800 text-slate-400'
@@ -323,7 +323,7 @@ export const CarromSetupScreen: React.FC<CarromSetupScreenProps> = ({
                     tap();
                     setUserPuck('black');
                   }}
-                  className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all cursor-pointer ${
+                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer ${
                     userPuck === 'black'
                       ? 'bg-slate-800/90 border-cyan-400 text-white shadow-[0_0_12px_rgba(6,182,212,0.2)]'
                       : 'bg-slate-900/50 border-slate-800 text-slate-400'
@@ -343,7 +343,7 @@ export const CarromSetupScreen: React.FC<CarromSetupScreenProps> = ({
         )}
 
         {playType === 'pass-and-play' && (
-          <div className="w-full p-3 rounded-2xl bg-slate-900/40 border border-slate-800 flex items-center justify-between text-xs">
+          <div className="w-full p-4 rounded-2xl bg-slate-900/40 border border-slate-800 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded-full bg-amber-200 border border-amber-400" />
               <div>
@@ -363,7 +363,7 @@ export const CarromSetupScreen: React.FC<CarromSetupScreenProps> = ({
         )}
 
         {playType === 'online' && (
-          <div className="w-full p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3">
+          <div className="w-full p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0 text-amber-400">
               <Zap className="w-4 h-4" />
             </div>
@@ -382,7 +382,7 @@ export const CarromSetupScreen: React.FC<CarromSetupScreenProps> = ({
         <button
           type="button"
           onClick={handleStart}
-          className={`w-full py-3 rounded-xl font-orbitron font-black tracking-widest text-xs flex items-center justify-center gap-2 cursor-pointer hover:brightness-110 active:scale-95 transition-all shadow-lg ${
+          className={`w-full py-3.5 mt-1 rounded-xl font-orbitron font-black tracking-widest text-xs flex items-center justify-center gap-2 cursor-pointer hover:brightness-110 active:scale-95 transition-all shadow-lg ${
             playType === 'online'
               ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 shadow-[0_0_20px_rgba(245,158,11,0.35)]'
               : 'bg-gradient-to-r from-cyan-500 to-emerald-400 text-slate-950 shadow-[0_0_20px_rgba(6,182,212,0.35)]'

@@ -341,6 +341,17 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
     setSelectableTokenIds([]);
     void broadcast; // online sync is push-based via ludoRoomManager.pushState (host only)
 
+    try {
+      await runTokenMove(token, roll);
+    } finally {
+      isAnimatingRef.current = false;
+    }
+  };
+
+  // Guaranteed via try/finally in handleExecuteTokenMove above: isAnimatingRef always
+  // clears even if a mid-animation error or a reset happens, so the game can never
+  // get permanently stuck (dice/tokens unresponsive) mid-move.
+  const runTokenMove = async (token: LudoToken, roll: number) => {
     const initialStep = token.step;
 
     // 1. If unlocking from Yard (step -1 to step 0)
@@ -545,6 +556,7 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
       setGameStage('online-lobby');
       return;
     }
+    isAnimatingRef.current = false;
     setPlayers(createInitialPlayers(setupConfig.seats));
     setCurrentTurnColor('red');
     setTurnState('waiting_roll');
@@ -563,6 +575,7 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
       setGameStage('online-lobby');
       return;
     }
+    isAnimatingRef.current = false;
     setPlayers(createInitialPlayers(config.seats));
     setCurrentTurnColor('red');
     setTurnState('waiting_roll');
@@ -585,6 +598,7 @@ export const NeonLudoGame: React.FC<NeonLudoGameProps> = ({
       return s ? { ...p, name: s.name } : p;
     });
 
+    isAnimatingRef.current = false;
     setOnlineRole(info.role);
     setMySeat(info.mySeat);
     setPlayers(built);

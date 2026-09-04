@@ -4,6 +4,12 @@
  */
 
 let audioCtx: AudioContext | null = null;
+let masterOutput: AudioNode | null = null;
+
+// Overall loudness boost applied to every SFX (raised because default synth
+// gains were mixed too quiet even at full device volume). A compressor sits
+// downstream so the extra gain can't cause clipping/distortion.
+const MASTER_VOLUME = 2.6;
 
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -19,6 +25,28 @@ function getAudioContext(): AudioContext | null {
     audioCtx.resume().catch(() => {});
   }
   return audioCtx;
+}
+
+// Every oscillator's gain node should connect here instead of ctx.destination
+// directly, so the master volume boost + limiter applies uniformly.
+function getMasterOutput(ctx: AudioContext): AudioNode {
+  if (masterOutput) return masterOutput;
+
+  const compressor = ctx.createDynamicsCompressor();
+  compressor.threshold.setValueAtTime(-12, ctx.currentTime);
+  compressor.knee.setValueAtTime(24, ctx.currentTime);
+  compressor.ratio.setValueAtTime(8, ctx.currentTime);
+  compressor.attack.setValueAtTime(0.003, ctx.currentTime);
+  compressor.release.setValueAtTime(0.15, ctx.currentTime);
+
+  const boost = ctx.createGain();
+  boost.gain.setValueAtTime(MASTER_VOLUME, ctx.currentTime);
+
+  boost.connect(compressor);
+  compressor.connect(ctx.destination);
+
+  masterOutput = boost;
+  return boost;
 }
 
 export function triggerHaptic(
@@ -76,7 +104,7 @@ export function playMoveSound(player: 'X' | 'O', enabled = true) {
     }
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.12);
@@ -109,7 +137,7 @@ export function playWinSound(enabled = true) {
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(getMasterOutput(ctx));
 
       osc.start(startTime);
       osc.stop(startTime + 0.28);
@@ -142,7 +170,7 @@ export function playDrawSound(enabled = true) {
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.18);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(getMasterOutput(ctx));
 
       osc.start(startTime);
       osc.stop(startTime + 0.2);
@@ -173,7 +201,7 @@ export function playClickSound(enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.05);
@@ -203,7 +231,7 @@ export function playResetSound(enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.16);
@@ -236,7 +264,7 @@ export function playEatSound(isSpecial = false, enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.1);
@@ -266,7 +294,7 @@ export function playCrashSound(enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.2);
@@ -296,7 +324,7 @@ export function playDropSound(enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.09);
@@ -327,7 +355,7 @@ export function playMergeSound(value = 4, enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.11);
@@ -379,7 +407,7 @@ export function playDPadSound(direction: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', enabl
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.05);
@@ -409,7 +437,7 @@ export function playPopSound(enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.06);
@@ -439,7 +467,7 @@ export function playCoinSpinSound(enabled = true) {
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.08);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(getMasterOutput(ctx));
 
       osc.start(startTime);
       osc.stop(startTime + 0.09);
@@ -471,7 +499,7 @@ export function playCoinDingSound(isWin = true, enabled = true) {
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.22);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(getMasterOutput(ctx));
 
       osc.start(startTime);
       osc.stop(startTime + 0.25);
@@ -508,7 +536,7 @@ export function playTurnAlertSound(isMyTurn = true, enabled = true) {
     }
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.18);
@@ -541,7 +569,7 @@ export function playDiceRollSound(enabled = true) {
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.035);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(getMasterOutput(ctx));
 
       osc.start(startTime);
       osc.stop(startTime + 0.04);
@@ -575,7 +603,7 @@ export function playTokenHopSound(stepCount = 0, enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.07);
@@ -606,7 +634,7 @@ export function playTokenUnlockSound(enabled = true) {
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.1);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(getMasterOutput(ctx));
 
       osc.start(startTime);
       osc.stop(startTime + 0.12);
@@ -636,7 +664,7 @@ export function playTokenKillSound(enabled = true) {
     gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
 
     osc1.connect(gain1);
-    gain1.connect(ctx.destination);
+    gain1.connect(getMasterOutput(ctx));
     osc1.start(now);
     osc1.stop(now + 0.22);
 
@@ -650,7 +678,7 @@ export function playTokenKillSound(enabled = true) {
     gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
 
     osc2.connect(gain2);
-    gain2.connect(ctx.destination);
+    gain2.connect(getMasterOutput(ctx));
     osc2.start(now);
     osc2.stop(now + 0.12);
   } catch {
@@ -680,7 +708,7 @@ export function playHomeEntrySound(enabled = true) {
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(getMasterOutput(ctx));
 
       osc.start(startTime);
       osc.stop(startTime + 0.3);
@@ -711,7 +739,7 @@ export function playTripleSixCancelSound(enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.3);
@@ -743,7 +771,7 @@ export function playCarromStrikeSound(power = 0.7, enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.1);
@@ -772,7 +800,7 @@ export function playCarromClackSound(intensity = 0.5, enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.05);
@@ -799,7 +827,7 @@ export function playCarromPocketSound(isQueen = false, enabled = true) {
         gain.gain.setValueAtTime(0.18, now + i * 0.04);
         gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.2);
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(getMasterOutput(ctx));
         osc.start(now + i * 0.04);
         osc.stop(now + i * 0.04 + 0.22);
       });
@@ -814,7 +842,7 @@ export function playCarromPocketSound(isQueen = false, enabled = true) {
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(getMasterOutput(ctx));
 
       osc.start(now);
       osc.stop(now + 0.16);
@@ -843,7 +871,7 @@ export function playCarromFoulSound(enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.28);
@@ -871,7 +899,7 @@ export function playUnoCardPlaySound(enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.07);
@@ -899,7 +927,7 @@ export function playUnoDrawSound(enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.09);
@@ -927,7 +955,7 @@ export function playUnoColorSwitchSound(enabled = true) {
       gain.gain.exponentialRampToValueAtTime(0.001, start + 0.12);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(getMasterOutput(ctx));
       osc.start(start);
       osc.stop(start + 0.14);
     });
@@ -955,7 +983,7 @@ export function playUnoAlertSound(enabled = true) {
       gain.gain.exponentialRampToValueAtTime(0.001, start + 0.16);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(getMasterOutput(ctx));
       osc.start(start);
       osc.stop(start + 0.18);
     });
@@ -983,7 +1011,7 @@ export function playUnoPenaltySound(enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.18);
@@ -1013,7 +1041,7 @@ export function playUnoEmojiPopSound(enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.22);
@@ -1043,7 +1071,7 @@ export function playUnoRiffleShuffleSound(enabled = true) {
     splitGain.gain.exponentialRampToValueAtTime(0.001, now + 0.52);
 
     splitOsc.connect(splitGain);
-    splitGain.connect(ctx.destination);
+    splitGain.connect(getMasterOutput(ctx));
     splitOsc.start(now);
     splitOsc.stop(now + 0.55);
 
@@ -1063,7 +1091,7 @@ export function playUnoRiffleShuffleSound(enabled = true) {
       gain.gain.exponentialRampToValueAtTime(0.001, start + 0.042);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(getMasterOutput(ctx));
 
       osc.start(start);
       osc.stop(start + 0.045);
@@ -1083,7 +1111,7 @@ export function playUnoRiffleShuffleSound(enabled = true) {
       bGain.gain.exponentialRampToValueAtTime(0.001, bStart + 0.055);
 
       bOsc.connect(bGain);
-      bGain.connect(ctx.destination);
+      bGain.connect(getMasterOutput(ctx));
 
       bOsc.start(bStart);
       bOsc.stop(bStart + 0.06);
@@ -1102,7 +1130,7 @@ export function playUnoRiffleShuffleSound(enabled = true) {
     tapGain.gain.exponentialRampToValueAtTime(0.001, tapStart + 0.09);
 
     tapOsc.connect(tapGain);
-    tapGain.connect(ctx.destination);
+    tapGain.connect(getMasterOutput(ctx));
 
     tapOsc.start(tapStart);
     tapOsc.stop(tapStart + 0.1);
@@ -1132,7 +1160,7 @@ export function playUnoCardDealSound(enabled = true) {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.37);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOutput(ctx));
 
     osc.start(now);
     osc.stop(now + 0.38);
@@ -1150,7 +1178,7 @@ export function playUnoCardDealSound(enabled = true) {
     snapGain.gain.exponentialRampToValueAtTime(0.001, snapStart + 0.055);
 
     snapOsc.connect(snapGain);
-    snapGain.connect(ctx.destination);
+    snapGain.connect(getMasterOutput(ctx));
 
     snapOsc.start(snapStart);
     snapOsc.stop(snapStart + 0.06);

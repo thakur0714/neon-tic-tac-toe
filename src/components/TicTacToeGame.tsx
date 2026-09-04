@@ -595,7 +595,7 @@ export const TicTacToeGame: React.FC<TicTacToeGameProps> = ({
   return (
     <div className="flex-1 w-full flex flex-col justify-between relative overflow-hidden">
       {/* Top Header */}
-      <div className="w-full px-4 pt-2 flex items-center justify-between z-20">
+      <div className="w-full px-4 pt-2 pb-2 flex items-center justify-between z-20">
         <button
           onClick={handleLeaveRoom}
           className="px-2.5 py-1 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-cyan-400 text-[11px] font-orbitron font-bold flex items-center gap-1 cursor-pointer"

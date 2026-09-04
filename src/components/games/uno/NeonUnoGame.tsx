@@ -176,7 +176,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       playUnoEmojiPopSound(soundEnabled);
       setTimeout(() => {
         setEmojiReactions((prev) => prev.filter((r) => r.id !== id));
-      }, 1600);
+      }, 2400);
     },
     [soundEnabled]
   );
@@ -1455,18 +1455,18 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
     return matches.length ? matches[matches.length - 1] : null;
   };
 
-  const EmojiBubble: React.FC<{ playerId?: string | null }> = ({ playerId }) => {
+  const renderEmojiBubble = (playerId?: string | null) => {
     const reaction = latestEmojiFor(playerId);
     return (
       <AnimatePresence>
         {reaction && (
           <motion.div
             key={reaction.id}
-            initial={{ opacity: 0, scale: 0.3, y: 8 }}
-            animate={{ opacity: 1, scale: 1.3, y: -6 }}
-            exit={{ opacity: 0, scale: 0.5, y: -18 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="absolute -top-5 left-1/2 -translate-x-1/2 text-2xl select-none pointer-events-none z-30 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]"
+            initial={{ opacity: 0, scale: 0.3, y: 10 }}
+            animate={{ opacity: 1, scale: [0.3, 1.5, 1.25], y: -12 }}
+            exit={{ opacity: 0, scale: 1, y: -20 }}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+            className="absolute -top-8 left-1/2 -translate-x-1/2 text-3xl sm:text-4xl select-none pointer-events-none z-30 drop-shadow-[0_0_12px_rgba(255,255,255,0.6)]"
           >
             {reaction.emoji}
           </motion.div>
@@ -1632,7 +1632,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
                 : 'bg-slate-900/70 border-slate-800 opacity-90'
             }`}
           >
-            <EmojiBubble playerId={topOpponent.id} />
+            {renderEmojiBubble(topOpponent.id)}
             <div className="text-left">
               <div className="flex items-center gap-1.5">
                 <span
@@ -1679,7 +1679,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
                   : 'bg-slate-900/70 border-slate-800 opacity-90'
               }`}
             >
-              <EmojiBubble playerId={leftOpponent.id} />
+              {renderEmojiBubble(leftOpponent.id)}
               <span className="text-[10px] font-orbitron font-bold text-amber-300 block truncate">
                 {leftOpponent.name}
               </span>
@@ -1753,7 +1753,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
                   : 'bg-slate-900/70 border-slate-800 opacity-90'
               }`}
             >
-              <EmojiBubble playerId={rightOpponent.id} />
+              {renderEmojiBubble(rightOpponent.id)}
               <span className="text-[10px] font-orbitron font-bold text-emerald-300 block truncate">
                 {rightOpponent.name}
               </span>
@@ -1784,7 +1784,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
               }`}
             />
             <div className="relative text-left">
-              <EmojiBubble playerId={bottomPlayerId} />
+              {renderEmojiBubble(bottomPlayerId)}
               <span className="text-xs font-orbitron font-black tracking-wide text-cyan-300">
                 {bottomPlayerName}
               </span>

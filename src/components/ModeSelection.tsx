@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Users, Bot, Zap, ArrowLeft, Skull, Sparkles, ChevronRight, Check, Volume2, VolumeX, Trophy, HelpCircle, Radio } from 'lucide-react';
+import { Users, Bot, Zap, Skull, Sparkles, ChevronRight, Check, Volume2, VolumeX, Trophy, HelpCircle, Radio } from 'lucide-react';
 import { GameConfig, GameMode, Player } from '../types';
 import { playClickSound, triggerHaptic } from '../utils/audio';
 
@@ -79,18 +79,7 @@ export const ModeSelection: React.FC<ModeSelectionProps> = ({
   return (
     <div className="flex-1 flex flex-col justify-between p-5 relative overflow-y-auto cyber-grid">
       {/* Top Header */}
-      <div className="flex items-center justify-between mb-4">
-        <button
-          onClick={() => {
-            playClickSound(config.soundEnabled);
-            onBack();
-          }}
-          className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-1 text-xs font-semibold"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>BACK</span>
-        </button>
-
+      <div className="flex items-center justify-end mb-4">
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => {
