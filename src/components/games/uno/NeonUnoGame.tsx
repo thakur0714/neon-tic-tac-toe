@@ -56,11 +56,6 @@ import {
   triggerHaptic,
 } from '../../../utils/audio';
 
-// Max time the host waits for every client to ack it has loaded its dealt
-// hand before starting the shuffle animation anyway (protects against one
-// player's weak/dead connection blocking the game for everyone else).
-const DEAL_ACK_TIMEOUT_MS = 5000;
-
 interface NeonUnoGameProps {
   onBackToHub: () => void;
   soundEnabled: boolean;
@@ -94,15 +89,6 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
   const [initialCardCount, setInitialCardCount] = useState<number>(7);
   const [clientAnimationPlayers, setClientAnimationPlayers] = useState<UnoPlayer[]>([]);
   const hasClientDealtRef = useRef<boolean>(false);
-  // Host-side: tracks which client seats have ack'd they're ready for the
-  // shuffle animation, so the "GO" signal is sent only once everyone (or the
-  // fallback timeout) is ready — avoids the shuffle firing for some players
-  // before others (e.g. a player on a weak connection) have even loaded it.
-  const dealReadySeatsRef = useRef<Set<number>>(new Set());
-  const dealGoFiredRef = useRef<boolean>(false);
-  const dealGoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hostFireDealGoRef = useRef<(() => void) | null>(null);
-  const hostExpectedDealSeatsRef = useRef<number[]>([]);
 
   // Online Multiplayer State
   const [onlineRole, setOnlineRole] = useState<'host' | 'client' | null>(null);
@@ -647,14 +633,15 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       setUnoPendingPlayerId(null);
       setActionNotification('Online Match Live! Good luck!');
 
-      // Ready handshake: wait for every connected client to ack that it has
-      // loaded its dealt hand before starting the shuffle animation for
-      // everyone at once. Falls back to a timeout so one weak/dead
-      // connection can't block the game forever for everyone else.
-      dealReadySeatsRef.current = new Set();
-      dealGoFiredRef.current = false;
-      if (dealGoTimeoutRef.current) clearTimeout(dealGoTimeoutRef.current);
-
+      // Start the shuffle animation for the host in the SAME tick as the
+      // rest of the game state — the underlying table (cards/hands) becomes
+      // visible the instant `setPlayers` etc. commit, so the animation must
+      // cover it immediately, not after any network round trip. Syncing
+      // with clients is handled by delivering STATE reliably (see
+      // unoRoomManager.startGameAsHost: START is sent before the local
+      // 'playing' status flips, so a client's listener is armed before this
+      // snapshot can arrive) rather than by delaying the host's own start.
+      setIsShufflingDealing(true);
       broadcastHostSnapshot(
         newPlayers,
         0,
@@ -668,23 +655,6 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
         cardCount,
         true
       );
-
-      const expectedSeats = unoRoomManager.getConnectedClientSeats();
-      const fireDealGo = () => {
-        if (dealGoFiredRef.current) return;
-        dealGoFiredRef.current = true;
-        if (dealGoTimeoutRef.current) clearTimeout(dealGoTimeoutRef.current);
-        unoRoomManager.hostBroadcastDealGo();
-        setIsShufflingDealing(true);
-      };
-
-      if (expectedSeats.length === 0) {
-        fireDealGo();
-      } else {
-        dealGoTimeoutRef.current = setTimeout(fireDealGo, DEAL_ACK_TIMEOUT_MS);
-      }
-      hostFireDealGoRef.current = fireDealGo;
-      hostExpectedDealSeatsRef.current = expectedSeats;
     }
   };
 
@@ -735,35 +705,17 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
 
           setClientAnimationPlayers(animPlayers);
 
-          // Tell the host we're ready to shuffle; wait for its DEAL_GO
-          // signal (or a local timeout) so everyone starts together instead
-          // of each client starting the moment its own snapshot arrives.
-          unoRoomManager.sendDealAck();
-          setTimeout(() => setIsShufflingDealing(true), DEAL_ACK_TIMEOUT_MS + 1000);
+          // Start immediately on arrival — the host sends this snapshot the
+          // instant it starts its own shuffle animation, and delivery is
+          // reliable (see unoRoomManager.startGameAsHost), so waiting any
+          // longer here only adds a visible gap between the client's board
+          // rendering and its shuffle animation covering it.
+          setIsShufflingDealing(true);
         }
 
         if (msg.snapshot.gameStatus === 'game-over' && msg.snapshot.winnerName) {
           playWinSound(soundEnabled);
           confetti({ particleCount: 100, spread: 70 });
-        }
-        return;
-      }
-
-      // Client receives GO signal: start the shuffle animation now, in sync
-      // with the host and every other player.
-      if (msg.type === 'DEAL_GO' && onlineRole === 'client') {
-        setIsShufflingDealing(true);
-        return;
-      }
-
-      // Host receives a client's ack that it's ready for the shuffle
-      if (msg.type === 'DEAL_ACK' && onlineRole === 'host') {
-        dealReadySeatsRef.current.add(msg.seatIndex);
-        const expected = hostExpectedDealSeatsRef.current;
-        const allReady =
-          expected.length > 0 && expected.every((s) => dealReadySeatsRef.current.has(s));
-        if (allReady && hostFireDealGoRef.current) {
-          hostFireDealGoRef.current();
         }
         return;
       }

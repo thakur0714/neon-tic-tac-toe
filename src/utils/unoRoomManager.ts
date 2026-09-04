@@ -434,32 +434,6 @@ class UnoRoomManager {
     }
   }
 
-  /**
-   * Client -> host: "I've loaded the dealt hand, ready for the shuffle
-   * animation to play." Used to sync the shuffle screen across all players
-   * instead of guessing a shared start time.
-   */
-  sendDealAck() {
-    if (this.mySeatIndex === null) return;
-    const msg: UnoRoomMessage = { type: 'DEAL_ACK', seatIndex: this.mySeatIndex };
-    if (this.role === 'host') {
-      this.emitMsg(msg);
-    } else if (this.hostConn && this.hostConn.open) {
-      this.safeSend(this.hostConn, msg);
-    }
-  }
-
-  /** Host -> everyone: all seats are ready, start the shuffle animation now. */
-  hostBroadcastDealGo() {
-    if (this.role !== 'host') return;
-    this.hostBroadcast({ type: 'DEAL_GO' });
-  }
-
-  /** Currently connected client seat indices (excludes the host's own seat 0). */
-  getConnectedClientSeats(): number[] {
-    return Array.from(this.seatByPeer.values());
-  }
-
   private startPingLoop() {
     if (this.pingTimer) clearInterval(this.pingTimer);
     this.pingTimer = setInterval(() => {
