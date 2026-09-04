@@ -105,6 +105,10 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
   playTypeRef.current = playType;
   const isShufflingDealingRef = useRef<boolean>(isShufflingDealing);
   isShufflingDealingRef.current = isShufflingDealing;
+  // Always points at the latest handlePassTurn closure, so a delayed
+  // auto-pass timer (scheduled after an unplayable draw) never fires with
+  // stale state.
+  const handlePassTurnRef = useRef<() => void>(() => {});
 
   // Core Game State (Host / Local)
   const [players, setPlayers] = useState<UnoPlayer[]>([]);
@@ -182,6 +186,15 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       unsub();
     };
   }, [playType]);
+
+  // Auto-dismiss the action notification toast a few seconds after it's set,
+  // instead of leaving it on screen (e.g. an "Invalid card!" error) until the
+  // next unrelated action happens to overwrite it.
+  useEffect(() => {
+    if (!actionNotification) return;
+    const t = setTimeout(() => setActionNotification(''), 3200);
+    return () => clearTimeout(t);
+  }, [actionNotification]);
 
   // Effective online role resolution (immune to async state lag)
   const effectiveRole = onlineRole || unoRoomManager.getRole();
@@ -659,6 +672,73 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
   };
 
   /**
+   * Catch the very first STATE snapshot as early as possible.
+   *
+   * Mounted unconditionally (empty deps) so it's listening from the first
+   * render — NOT gated on `playType === 'online'`. That gate is normally
+   * fine, but it depends on a React state commit (`setPlayType('online')`)
+   * that happens in the SAME synchronous handler as the client's own
+   * `handleStartOnlineMatch`, which itself was triggered by the host's
+   * `START` message. On a fast connection, the host's `STATE` message can
+   * arrive and be dispatched to `onMessage` subscribers before React has
+   * re-rendered and re-subscribed the (playType-gated) listener below —
+   * so the first snapshot gets silently dropped and the client sees an
+   * empty board until the host's next broadcast (e.g. their first move).
+   * This effect uses `unoRoomManager`'s own synchronous role/seat state
+   * instead of React state, so it can never miss that first message.
+   */
+  useEffect(() => {
+    const unsub = unoRoomManager.onMessage((msg: UnoRoomMessage) => {
+      if (
+        msg.type === 'STATE' &&
+        unoRoomManager.getRole() === 'client' &&
+        !hasClientDealtRef.current &&
+        msg.snapshot.topCard
+      ) {
+        hasClientDealtRef.current = true;
+        setOnlineSnapshot(msg.snapshot);
+
+        const totalSeats = msg.snapshot.players.length;
+        const mySeat = unoRoomManager.getMySeat() ?? 0;
+        const cardsPerP = msg.snapshot.initialCardCount || 7;
+        setInitialCardCount(cardsPerP);
+
+        // Configure table positions relative to this client's seat so client is always at 'bottom'
+        const animPlayers: UnoPlayer[] = msg.snapshot.players.map((p, idx) => {
+          let pos: UnoTablePosition = 'bottom';
+          if (idx === mySeat) {
+            pos = 'bottom';
+          } else if (totalSeats === 2) {
+            pos = 'top';
+          } else if (totalSeats === 3) {
+            const rel = (idx - mySeat + 3) % 3;
+            pos = rel === 1 ? 'left' : 'top';
+          } else {
+            const rel = (idx - mySeat + 4) % 4;
+            pos = rel === 1 ? 'left' : rel === 2 ? 'top' : 'right';
+          }
+          return {
+            id: p.id,
+            name: p.name,
+            type: 'human',
+            hand: [],
+            avatarColor: p.avatarColor,
+            position: pos,
+            score: 0,
+            hasCalledUno: p.hasCalledUno,
+          };
+        });
+
+        setClientAnimationPlayers(animPlayers);
+        setIsShufflingDealing(true);
+      }
+    });
+    return () => {
+      unsub();
+    };
+  }, []);
+
+  /**
    * Listen to Online Peer Messages (Client receives snapshot, Host receives intents)
    */
   useEffect(() => {
@@ -669,48 +749,11 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       if (msg.type === 'STATE' && onlineRole === 'client') {
         setOnlineSnapshot(msg.snapshot);
 
-        // First snapshot received: trigger shuffle & dealing animation for client!
-        if (!hasClientDealtRef.current && msg.snapshot.topCard) {
-          hasClientDealtRef.current = true;
-          const totalSeats = msg.snapshot.players.length;
-          const mySeat = myOnlineSeatIndex;
-          const cardsPerP = msg.snapshot.initialCardCount || initialCardCount || 7;
-          setInitialCardCount(cardsPerP);
-
-          // Configure table positions relative to this client's seat so client is always at 'bottom'
-          const animPlayers: UnoPlayer[] = msg.snapshot.players.map((p, idx) => {
-            let pos: UnoTablePosition = 'bottom';
-            if (idx === mySeat) {
-              pos = 'bottom';
-            } else if (totalSeats === 2) {
-              pos = 'top';
-            } else if (totalSeats === 3) {
-              const rel = (idx - mySeat + 3) % 3;
-              pos = rel === 1 ? 'left' : 'top';
-            } else {
-              const rel = (idx - mySeat + 4) % 4;
-              pos = rel === 1 ? 'left' : rel === 2 ? 'top' : 'right';
-            }
-            return {
-              id: p.id,
-              name: p.name,
-              type: 'human',
-              hand: [],
-              avatarColor: p.avatarColor,
-              position: pos,
-              score: 0,
-              hasCalledUno: p.hasCalledUno,
-            };
-          });
-
-          setClientAnimationPlayers(animPlayers);
-
-          // Start immediately on arrival — the host sends this snapshot the
-          // instant it starts its own shuffle animation, and delivery is
-          // reliable (see unoRoomManager.startGameAsHost), so waiting any
-          // longer here only adds a visible gap between the client's board
-          // rendering and its shuffle animation covering it.
-          setIsShufflingDealing(true);
+        // Turn moved on (e.g. the host auto-passed after an unplayable
+        // draw) — clear the optimistic draw flag so the Pass Turn button
+        // doesn't linger into the next player's turn.
+        if (!msg.snapshot.isMyTurn) {
+          setHasDrawnThisTurn(false);
         }
 
         if (msg.snapshot.gameStatus === 'game-over' && msg.snapshot.winnerName) {
@@ -758,6 +801,29 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
               `${players[seat]?.name} drew a card.`,
               currentDraw
             );
+
+            // If the drawn card can't be played, auto-advance the turn
+            // (the client has no reason to sit waiting on a manual "Pass"
+            // tap) after a brief beat so everyone sees what was drawn.
+            if (!isValidCardPlay(drawn, topCard, activeColor, cardEightWild)) {
+              const drawnSeatName = players[seat]?.name || 'Player';
+              setTimeout(() => {
+                const nextIndex = getNextTurnIndex(currentTurnIndex, direction, updated.length, 1);
+                setCurrentTurnIndex(nextIndex);
+                setActionNotification(`${drawnSeatName} drew a card — no valid play, turn passed.`);
+                broadcastHostSnapshot(
+                  updated,
+                  nextIndex,
+                  direction,
+                  topCard,
+                  activeColor,
+                  gameStatus,
+                  winner,
+                  `${drawnSeatName} drew a card — no valid play, turn passed.`,
+                  currentDraw
+                );
+              }, 1300);
+            }
           }
         } else if (msg.action === 'call_uno') {
           playUnoAlertSound(soundEnabled);
@@ -860,6 +926,11 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
     triggerHaptic('light');
 
     if (playType === 'online' && onlineRole === 'client') {
+      // Optimistically flag as drawn so the Pass Turn button is available
+      // if the drawn card turns out playable; the main online listener
+      // clears this again once the host's snapshot shows the turn moved on
+      // (e.g. after the host auto-passes for an unplayable draw).
+      setHasDrawnThisTurn(true);
       unoRoomManager.sendIntent({ action: 'draw' });
       return;
     }
@@ -884,10 +955,17 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
     setPlayers(updated);
     setHasDrawnThisTurn(true);
 
-    if (isValidCardPlay(drawnCard, topCard, activeColor, cardEightWild)) {
+    const drawnIsPlayable = isValidCardPlay(drawnCard, topCard, activeColor, cardEightWild);
+    if (drawnIsPlayable) {
       setActionNotification(`Drawn card (${drawnCard.color} ${drawnCard.value}) is playable!`);
     } else {
-      setActionNotification('Card drawn — not playable. Tap Pass Turn.');
+      setActionNotification(
+        `${players[currentTurnIndex]?.name || 'Player'} drew a card — no valid play, passing turn...`
+      );
+      // No manual "Pass Turn" tap needed when the drawn card can't be
+      // played anyway — auto-advance the turn after a brief beat so the
+      // player (and opponent) can see what was drawn first.
+      setTimeout(() => handlePassTurnRef.current(), 1300);
     }
 
     if (playType === 'online' && onlineRole === 'host') {
@@ -934,6 +1012,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       );
     }
   };
+  handlePassTurnRef.current = handlePassTurn;
 
   /**
    * Call UNO button
@@ -1372,9 +1451,11 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
         {/* Center Table Arena (Draw Pile & Discard Pile) */}
         <div className="flex flex-col items-center justify-center gap-1.5 my-auto">
           {/* Action Notification Toast Banner */}
-          <div className="px-3 py-1 rounded-full bg-slate-900/90 border border-slate-700/80 text-[11px] font-mono text-cyan-300 max-w-xs text-center shadow-lg backdrop-blur-sm truncate">
-            {actionNotification}
-          </div>
+          {actionNotification && (
+            <div className="px-3 py-1 rounded-full bg-slate-900/90 border border-slate-700/80 text-[11px] font-mono text-cyan-300 max-w-xs text-center shadow-lg backdrop-blur-sm truncate">
+              {actionNotification}
+            </div>
+          )}
 
           <div className="flex items-center justify-center gap-4 sm:gap-6">
             {/* Draw Pile Deck */}
