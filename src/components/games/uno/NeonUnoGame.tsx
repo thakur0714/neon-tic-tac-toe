@@ -56,10 +56,10 @@ import {
   triggerHaptic,
 } from '../../../utils/audio';
 
-// Grace period given to the initial STATE broadcast to reach clients (connection
-// setup + P2P round-trip) before the shuffle/deal animation starts, so the host
-// and every client kick it off at (roughly) the same wall-clock moment.
-const DEAL_SYNC_DELAY_MS = 900;
+// Max time the host waits for every client to ack it has loaded its dealt
+// hand before starting the shuffle animation anyway (protects against one
+// player's weak/dead connection blocking the game for everyone else).
+const DEAL_ACK_TIMEOUT_MS = 5000;
 
 interface NeonUnoGameProps {
   onBackToHub: () => void;
@@ -94,6 +94,15 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
   const [initialCardCount, setInitialCardCount] = useState<number>(7);
   const [clientAnimationPlayers, setClientAnimationPlayers] = useState<UnoPlayer[]>([]);
   const hasClientDealtRef = useRef<boolean>(false);
+  // Host-side: tracks which client seats have ack'd they're ready for the
+  // shuffle animation, so the "GO" signal is sent only once everyone (or the
+  // fallback timeout) is ready — avoids the shuffle firing for some players
+  // before others (e.g. a player on a weak connection) have even loaded it.
+  const dealReadySeatsRef = useRef<Set<number>>(new Set());
+  const dealGoFiredRef = useRef<boolean>(false);
+  const dealGoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hostFireDealGoRef = useRef<(() => void) | null>(null);
+  const hostExpectedDealSeatsRef = useRef<number[]>([]);
 
   // Online Multiplayer State
   const [onlineRole, setOnlineRole] = useState<'host' | 'client' | null>(null);
@@ -246,8 +255,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       msg: string,
       curDrawPile: UnoCard[],
       customInitialCardCount?: number,
-      isDealingParam?: boolean,
-      dealStartAt?: number
+      isDealingParam?: boolean
     ) => {
       const currentHostRole = onlineRoleRef.current || unoRoomManager.getRole();
       if (currentHostRole !== 'host') return;
@@ -277,7 +285,6 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
           isMyTurn: curTurn === i,
           initialCardCount: customInitialCardCount || initialCardCount || 7,
           isDealing: isDealingParam !== undefined ? isDealingParam : isShufflingDealingRef.current,
-          dealStartAt,
         };
         unoRoomManager.hostSendToSeat(i, { type: 'STATE', snapshot: clientSnapshot });
       }
@@ -640,10 +647,14 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       setUnoPendingPlayerId(null);
       setActionNotification('Online Match Live! Good luck!');
 
-      // Schedule a shared start time so host and every client begin the
-      // shuffle/deal animation together, instead of the host starting it
-      // locally and clients only starting once their snapshot arrives.
-      const dealStartAt = Date.now() + DEAL_SYNC_DELAY_MS;
+      // Ready handshake: wait for every connected client to ack that it has
+      // loaded its dealt hand before starting the shuffle animation for
+      // everyone at once. Falls back to a timeout so one weak/dead
+      // connection can't block the game forever for everyone else.
+      dealReadySeatsRef.current = new Set();
+      dealGoFiredRef.current = false;
+      if (dealGoTimeoutRef.current) clearTimeout(dealGoTimeoutRef.current);
+
       broadcastHostSnapshot(
         newPlayers,
         0,
@@ -655,12 +666,25 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
         'Match started!',
         fullDeck,
         cardCount,
-        true,
-        dealStartAt
+        true
       );
-      setTimeout(() => {
+
+      const expectedSeats = unoRoomManager.getConnectedClientSeats();
+      const fireDealGo = () => {
+        if (dealGoFiredRef.current) return;
+        dealGoFiredRef.current = true;
+        if (dealGoTimeoutRef.current) clearTimeout(dealGoTimeoutRef.current);
+        unoRoomManager.hostBroadcastDealGo();
         setIsShufflingDealing(true);
-      }, Math.max(0, dealStartAt - Date.now()));
+      };
+
+      if (expectedSeats.length === 0) {
+        fireDealGo();
+      } else {
+        dealGoTimeoutRef.current = setTimeout(fireDealGo, DEAL_ACK_TIMEOUT_MS);
+      }
+      hostFireDealGoRef.current = fireDealGo;
+      hostExpectedDealSeatsRef.current = expectedSeats;
     }
   };
 
@@ -711,18 +735,35 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
 
           setClientAnimationPlayers(animPlayers);
 
-          // Start at the host-scheduled shared moment so the shuffle/deal
-          // animation plays in sync with the host and other clients, rather
-          // than as soon as this client's own snapshot happens to arrive.
-          const delay = msg.snapshot.dealStartAt
-            ? Math.max(0, msg.snapshot.dealStartAt - Date.now())
-            : 0;
-          setTimeout(() => setIsShufflingDealing(true), delay);
+          // Tell the host we're ready to shuffle; wait for its DEAL_GO
+          // signal (or a local timeout) so everyone starts together instead
+          // of each client starting the moment its own snapshot arrives.
+          unoRoomManager.sendDealAck();
+          setTimeout(() => setIsShufflingDealing(true), DEAL_ACK_TIMEOUT_MS + 1000);
         }
 
         if (msg.snapshot.gameStatus === 'game-over' && msg.snapshot.winnerName) {
           playWinSound(soundEnabled);
           confetti({ particleCount: 100, spread: 70 });
+        }
+        return;
+      }
+
+      // Client receives GO signal: start the shuffle animation now, in sync
+      // with the host and every other player.
+      if (msg.type === 'DEAL_GO' && onlineRole === 'client') {
+        setIsShufflingDealing(true);
+        return;
+      }
+
+      // Host receives a client's ack that it's ready for the shuffle
+      if (msg.type === 'DEAL_ACK' && onlineRole === 'host') {
+        dealReadySeatsRef.current.add(msg.seatIndex);
+        const expected = hostExpectedDealSeatsRef.current;
+        const allReady =
+          expected.length > 0 && expected.every((s) => dealReadySeatsRef.current.has(s));
+        if (allReady && hostFireDealGoRef.current) {
+          hostFireDealGoRef.current();
         }
         return;
       }

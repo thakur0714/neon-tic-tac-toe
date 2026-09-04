@@ -121,7 +121,6 @@ export interface UnoOnlineSnapshot {
   isMyTurn: boolean;
   initialCardCount?: number;
   isDealing?: boolean;
-  dealStartAt?: number;
 }
 
 export type UnoRoomMessage =
@@ -137,6 +136,8 @@ export type UnoRoomMessage =
       cardId?: string;
       chosenColor?: UnoCardColor;
     }
+  | { type: 'DEAL_ACK'; seatIndex: number }
+  | { type: 'DEAL_GO' }
   | { type: 'HOST_LEFT' }
   | { type: 'PING'; t: number }
   | { type: 'PONG'; t: number };
