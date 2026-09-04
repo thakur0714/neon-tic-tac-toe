@@ -52,9 +52,30 @@ import {
   playUnoColorSwitchSound,
   playUnoAlertSound,
   playUnoPenaltySound,
+  playUnoEmojiPopSound,
   playWinSound,
   triggerHaptic,
 } from '../../../utils/audio';
+
+// Grace window a player gets to tap "UNO!" after playing down to 1 card
+// before an automatic +2 card penalty is applied.
+const UNO_GRACE_MS = 4000;
+
+// Random emoji pools for reactions fired off when power cards land — the
+// attacker gets a mischievous/happy pop, the victim gets a sad/shocked one.
+const EMOJI_POOLS = {
+  attackHappy: ['😈', '😆', '🔥', '😏', '👑'],
+  victimSad: ['😭', '😢', '😱', '😡'],
+  skip: ['🙅', '⛔', '😏'],
+  reverse: ['🔄', '😜'],
+  colorChange: ['🎨', '😄', '✨'],
+} as const;
+
+interface UnoEmojiReaction {
+  id: string;
+  playerId: string;
+  emoji: string;
+}
 
 interface NeonUnoGameProps {
   onBackToHub: () => void;
@@ -143,8 +164,27 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
   const [actionNotification, setActionNotification] = useState<string>('Match color or number!');
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
 
+  // Floating emoji reactions fired off whenever a power card lands, keyed
+  // per-player so each seat can show its own bubble simultaneously.
+  const [emojiReactions, setEmojiReactions] = useState<UnoEmojiReaction[]>([]);
+  const triggerEmoji = useCallback(
+    (playerId: string | undefined | null, pool: readonly string[]) => {
+      if (!playerId) return;
+      const emoji = pool[Math.floor(Math.random() * pool.length)];
+      const id = `${playerId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      setEmojiReactions((prev) => [...prev, { id, playerId, emoji }]);
+      playUnoEmojiPopSound(soundEnabled);
+      setTimeout(() => {
+        setEmojiReactions((prev) => prev.filter((r) => r.id !== id));
+      }, 1600);
+    },
+    [soundEnabled]
+  );
+
   // A local human who just reached 1 card must tap UNO! before the grace window ends
   const [unoPendingPlayerId, setUnoPendingPlayerId] = useState<string | null>(null);
+  // Epoch ms when that grace window ends — drives the countdown ring on the UNO! button.
+  const [unoDeadlineAt, setUnoDeadlineAt] = useState<number | null>(null);
   const unoPendingRef = useRef<string | null>(null);
   useEffect(() => {
     unoPendingRef.current = unoPendingPlayerId;
@@ -196,6 +236,53 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
     return () => clearTimeout(t);
   }, [actionNotification]);
 
+  // Mirror the host's game-event messages (card plays, UNO calls, penalties,
+  // draws...) to an online client's own toast + sound — the host already
+  // sees these directly from its own local handlers, but a client otherwise
+  // never learns about them since it doesn't run that logic itself.
+  const lastMirroredMsgRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (playType !== 'online' || onlineRole !== 'client') return;
+    const msg = onlineSnapshot?.lastActionMessage;
+    if (!msg || msg === lastMirroredMsgRef.current) return;
+    lastMirroredMsgRef.current = msg;
+    setActionNotification(msg);
+    if (msg.includes('penalty')) {
+      playUnoPenaltySound(soundEnabled);
+      triggerHaptic('medium');
+    } else if (msg.includes('CALLED UNO') || msg.includes('called UNO')) {
+      playUnoAlertSound(soundEnabled);
+    }
+
+    // Mirror emoji reactions for power cards too — the client never runs
+    // commitCardPlay itself, so it must infer the reaction from the host's
+    // broadcast message text instead.
+    const seatList = onlineSnapshot?.players;
+    if (seatList) {
+      const actor = seatList.find((p) => msg.startsWith(p.name));
+      const actorIdx = actor ? seatList.findIndex((p) => p.id === actor.id) : -1;
+      const dir = onlineSnapshot?.direction || 1;
+      const victimIdx =
+        actorIdx >= 0 ? getNextTurnIndex(actorIdx, dir, seatList.length, 1) : -1;
+      const victimId = victimIdx >= 0 ? seatList[victimIdx]?.id : undefined;
+
+      if (actor && msg.includes('REVERSE') && msg.includes('skipped')) {
+        triggerEmoji(actor.id, EMOJI_POOLS.skip);
+        triggerEmoji(victimId, EMOJI_POOLS.victimSad);
+      } else if (actor && msg.includes('REVERSED')) {
+        triggerEmoji(actor.id, EMOJI_POOLS.reverse);
+      } else if (actor && msg.includes('SKIP')) {
+        triggerEmoji(actor.id, EMOJI_POOLS.skip);
+        triggerEmoji(victimId, EMOJI_POOLS.victimSad);
+      } else if (actor && (msg.includes('+2 DRAW') || msg.includes('+4 WILD'))) {
+        triggerEmoji(actor.id, EMOJI_POOLS.attackHappy);
+        triggerEmoji(victimId, EMOJI_POOLS.victimSad);
+      } else if (actor && msg.includes('changed color')) {
+        triggerEmoji(actor.id, EMOJI_POOLS.colorChange);
+      }
+    }
+  }, [onlineSnapshot?.lastActionMessage, playType, onlineRole, soundEnabled, triggerEmoji]);
+
   // Effective online role resolution (immune to async state lag)
   const effectiveRole = onlineRole || unoRoomManager.getRole();
   const isOnlineClient = playType === 'online' && effectiveRole === 'client';
@@ -239,6 +326,21 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       ? gameStatus === 'playing' && !isShufflingDealing && !showPrivacyVeil
       : activePlayer?.type === 'human' && gameStatus === 'playing' && !isShufflingDealing;
 
+  // Is IT THIS DEVICE that must call UNO! right now? Drives the countdown
+  // ring on the button. Host/local modes track this via local state
+  // (`unoPendingPlayerId`); an online client only knows via the host's
+  // broadcast snapshot.
+  const isMyUnoPending =
+    isOnlineClient
+      ? onlineSnapshot?.unoPendingSeat === myOnlineSeatIndex
+      : !!unoPendingPlayerId;
+  const unoRingKey = isOnlineClient
+    ? `${onlineSnapshot?.unoPendingSeat ?? 'none'}-${onlineSnapshot?.unoDeadlineAt ?? 0}`
+    : unoPendingPlayerId || 'none';
+  const unoRingDurationSec = isOnlineClient
+    ? Math.max(0.05, ((onlineSnapshot?.unoDeadlineAt || Date.now()) - Date.now()) / 1000)
+    : UNO_GRACE_MS / 1000;
+
   /**
    * Broadcast Host state snapshot to all connected online peers
    */
@@ -254,7 +356,9 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       msg: string,
       curDrawPile: UnoCard[],
       customInitialCardCount?: number,
-      isDealingParam?: boolean
+      isDealingParam?: boolean,
+      unoPendingSeat?: number | null,
+      unoDeadlineAt?: number | null
     ) => {
       const currentHostRole = onlineRoleRef.current || unoRoomManager.getRole();
       if (currentHostRole !== 'host') return;
@@ -284,6 +388,8 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
           isMyTurn: curTurn === i,
           initialCardCount: customInitialCardCount || initialCardCount || 7,
           isDealing: isDealingParam !== undefined ? isDealingParam : isShufflingDealingRef.current,
+          unoPendingSeat: unoPendingSeat ?? null,
+          unoDeadlineAt: unoDeadlineAt ?? null,
         };
         unoRoomManager.hostSendToSeat(i, { type: 'STATE', snapshot: clientSnapshot });
       }
@@ -388,6 +494,27 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
         notification = `${currentP.name} changed color to ${newColor.toUpperCase()}!`;
       }
 
+      // 🎭 Fun emoji reactions — the attacker gets a mischievous/happy pop,
+      // the affected opponent(s) get a sad/shocked one, making power-card
+      // plays feel alive for 2/3/4 player games alike.
+      if (card.value === 'reverse' && totalP === 2) {
+        triggerEmoji(currentP.id, EMOJI_POOLS.skip);
+        const skippedId = players[getNextTurnIndex(playerIndex, newDirection, totalP, 1)]?.id;
+        triggerEmoji(skippedId, EMOJI_POOLS.victimSad);
+      } else if (card.value === 'reverse') {
+        triggerEmoji(currentP.id, EMOJI_POOLS.reverse);
+      } else if (card.value === 'skip') {
+        triggerEmoji(currentP.id, EMOJI_POOLS.skip);
+        const skippedId = players[getNextTurnIndex(playerIndex, newDirection, totalP, 1)]?.id;
+        triggerEmoji(skippedId, EMOJI_POOLS.victimSad);
+      } else if (card.value === 'draw2' || card.value === 'wild4') {
+        triggerEmoji(currentP.id, EMOJI_POOLS.attackHappy);
+        const victimId = players[getNextTurnIndex(playerIndex, newDirection, totalP, 1)]?.id;
+        triggerEmoji(victimId, EMOJI_POOLS.victimSad);
+      } else if (isWildCard(card, cardEightWild)) {
+        triggerEmoji(currentP.id, EMOJI_POOLS.colorChange);
+      }
+
       // Advance turn to next eligible player
       const nextIndex = getNextTurnIndex(playerIndex, newDirection, totalP, nextStep);
 
@@ -412,6 +539,8 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
 
       // ── UNO! enforcement ──────────────────────────────────────────────
       // Player is now down to a single card and must announce "UNO!".
+      let pendingSeatForBroadcast: number | null = null;
+      let pendingDeadlineForBroadcast: number | null = null;
       if (newHand.length === 1) {
         if (currentP.type === 'ai') {
           const remembers =
@@ -436,6 +565,9 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
         } else {
           // Human — must tap the UNO! button before the grace window ends
           setUnoPendingPlayerId(currentP.id);
+          pendingSeatForBroadcast = playerIndex;
+          pendingDeadlineForBroadcast = Date.now() + UNO_GRACE_MS;
+          setUnoDeadlineAt(pendingDeadlineForBroadcast);
           notification = `⚡ ${currentP.name} has UNO! Tap UNO! now or risk +2`;
         }
       }
@@ -461,7 +593,11 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
         nextStatus,
         finalWinner,
         notification,
-        currentDraw
+        currentDraw,
+        undefined,
+        undefined,
+        pendingSeatForBroadcast,
+        pendingDeadlineForBroadcast
       );
     },
     [
@@ -475,6 +611,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       cardEightWild,
       difficulty,
       broadcastHostSnapshot,
+      triggerEmoji,
     ]
   );
 
@@ -490,15 +627,44 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       }
       const taken = d.splice(0, 2);
       setDrawPile(d);
-      setPlayers((prev) =>
-        prev.map((p) =>
-          p.id === playerId ? { ...p, hand: [...p.hand, ...taken] } : p
-        )
+      const updated = players.map((p) =>
+        p.id === playerId ? { ...p, hand: [...p.hand, ...taken] } : p
       );
+      setPlayers(updated);
       setActionNotification(message);
       playUnoPenaltySound(soundEnabled);
+      setUnoDeadlineAt(null);
+
+      // Let every connected player see (and hear) the penalty, not just the
+      // host's own screen.
+      if (playType === 'online' && onlineRoleRef.current === 'host') {
+        broadcastHostSnapshot(
+          updated,
+          currentTurnIndex,
+          direction,
+          topCard,
+          activeColor,
+          gameStatus,
+          winner,
+          message,
+          d
+        );
+      }
     },
-    [drawPile, discardPile, soundEnabled]
+    [
+      drawPile,
+      discardPile,
+      soundEnabled,
+      players,
+      playType,
+      currentTurnIndex,
+      direction,
+      topCard,
+      activeColor,
+      gameStatus,
+      winner,
+      broadcastHostSnapshot,
+    ]
   );
 
   /**
@@ -512,7 +678,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
         applyUnoPenalty(unoPendingRef.current, '⚠️ Forgot to call UNO! +2 penalty');
         setUnoPendingPlayerId(null);
       }
-    }, 4000);
+    }, UNO_GRACE_MS);
     return () => clearTimeout(timer);
   }, [unoPendingPlayerId, applyUnoPenalty]);
 
@@ -520,7 +686,10 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
   useEffect(() => {
     if (!unoPendingPlayerId) return;
     const pending = players.find((p) => p.id === unoPendingPlayerId);
-    if (!pending || pending.hand.length !== 1) setUnoPendingPlayerId(null);
+    if (!pending || pending.hand.length !== 1) {
+      setUnoPendingPlayerId(null);
+      setUnoDeadlineAt(null);
+    }
   }, [players, unoPendingPlayerId]);
 
   /**
@@ -763,6 +932,14 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
         return;
       }
 
+      // A connected player's seat dropped mid-game (host and every other
+      // client get this so it's not silent).
+      if (msg.type === 'PLAYER_LEFT') {
+        triggerHaptic('medium');
+        setActionNotification(`⚠️ ${msg.name} left the game.`);
+        return;
+      }
+
       // Host receives INTENT from client
       if (msg.type === 'INTENT' && onlineRole === 'host') {
         const seat = msg.seatIndex;
@@ -827,7 +1004,18 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
           }
         } else if (msg.action === 'call_uno') {
           playUnoAlertSound(soundEnabled);
-          const notif = `📣 ${players[seat]?.name} CALLED UNO!`;
+          const callingPlayer = players[seat];
+          const clearsPenalty =
+            !!callingPlayer &&
+            unoPendingPlayerId === callingPlayer.id &&
+            callingPlayer.hand.length === 1;
+          const notif = clearsPenalty
+            ? `📣 ${callingPlayer.name} called UNO! Safe.`
+            : `📣 ${callingPlayer?.name || 'Player'} CALLED UNO!`;
+          if (clearsPenalty) {
+            setUnoPendingPlayerId(null);
+            setUnoDeadlineAt(null);
+          }
           setActionNotification(notif);
           broadcastHostSnapshot(
             players,
@@ -838,7 +1026,11 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
             gameStatus,
             winner,
             notif,
-            drawPile
+            drawPile,
+            undefined,
+            undefined,
+            null,
+            null
           );
         }
       }
@@ -862,6 +1054,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
     soundEnabled,
     commitCardPlay,
     broadcastHostSnapshot,
+    unoPendingPlayerId,
   ]);
 
   /**
@@ -1030,7 +1223,26 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       const pending = players.find((p) => p.id === unoPendingPlayerId);
       if (pending && pending.hand.length === 1) {
         setUnoPendingPlayerId(null);
-        setActionNotification(`📣 ${pending.name} called UNO! Safe.`);
+        setUnoDeadlineAt(null);
+        const safeMsg = `📣 ${pending.name} called UNO! Safe.`;
+        setActionNotification(safeMsg);
+        if (playType === 'online' && onlineRole === 'host') {
+          broadcastHostSnapshot(
+            players,
+            currentTurnIndex,
+            direction,
+            topCard,
+            activeColor,
+            gameStatus,
+            winner,
+            safeMsg,
+            drawPile,
+            undefined,
+            undefined,
+            null,
+            null
+          );
+        }
         return;
       }
     }
@@ -1227,6 +1439,42 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       ? players[currentTurnIndex]?.name || 'PLAYER 1'
       : 'YOU';
 
+  const bottomPlayerId =
+    playType === 'online'
+      ? onlineRole === 'client'
+        ? onlineSnapshot?.players[myOnlineSeatIndex]?.id
+        : players[0]?.id
+      : playType === 'pass-and-play'
+      ? players[currentTurnIndex]?.id
+      : players[0]?.id;
+
+  // Most recent active reaction targeting a given seat, if any.
+  const latestEmojiFor = (playerId?: string | null) => {
+    if (!playerId) return null;
+    const matches = emojiReactions.filter((r) => r.playerId === playerId);
+    return matches.length ? matches[matches.length - 1] : null;
+  };
+
+  const EmojiBubble: React.FC<{ playerId?: string | null }> = ({ playerId }) => {
+    const reaction = latestEmojiFor(playerId);
+    return (
+      <AnimatePresence>
+        {reaction && (
+          <motion.div
+            key={reaction.id}
+            initial={{ opacity: 0, scale: 0.3, y: 8 }}
+            animate={{ opacity: 1, scale: 1.3, y: -6 }}
+            exit={{ opacity: 0, scale: 0.5, y: -18 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="absolute -top-5 left-1/2 -translate-x-1/2 text-2xl select-none pointer-events-none z-30 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]"
+          >
+            {reaction.emoji}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
+  };
+
   return (
     <div className="w-full h-full flex flex-col justify-between p-2 sm:p-3 bg-slate-950 text-white select-none overflow-hidden relative font-sans">
       {/* Cinematic Deck Shuffle & Dealing Animation Overlay */}
@@ -1378,12 +1626,13 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       <div className="shrink-0 flex items-center justify-center py-0.5 z-10">
         {topOpponent && (
           <div
-            className={`p-1.5 rounded-xl border transition-all flex items-center gap-2 ${
+            className={`relative p-1.5 rounded-xl border transition-all flex items-center gap-2 ${
               topOpponent.isActive
                 ? 'bg-pink-950/50 border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.4)] scale-105 ring-2 ring-pink-400'
                 : 'bg-slate-900/70 border-slate-800 opacity-90'
             }`}
           >
+            <EmojiBubble playerId={topOpponent.id} />
             <div className="text-left">
               <div className="flex items-center gap-1.5">
                 <span
@@ -1419,17 +1668,18 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       </div>
 
       {/* 3. Middle Arena: Left Player, Table Center (Draw & Discard), Right Player */}
-      <div className="flex-1 flex items-center justify-between px-1 relative my-auto z-10">
+      <div className="flex-1 flex items-center justify-between px-1 relative my-auto z-10 min-w-0">
         {/* Left Opponent (if 3 or 4 players) */}
         <div className="w-16 sm:w-20 shrink-0 flex flex-col items-center">
           {leftOpponent && (
             <div
-              className={`p-1.5 rounded-xl border text-center transition-all ${
+              className={`relative p-1.5 rounded-xl border text-center transition-all ${
                 leftOpponent.isActive
                   ? 'bg-amber-950/50 border-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.3)] ring-1 ring-amber-400'
                   : 'bg-slate-900/70 border-slate-800 opacity-90'
               }`}
             >
+              <EmojiBubble playerId={leftOpponent.id} />
               <span className="text-[10px] font-orbitron font-bold text-amber-300 block truncate">
                 {leftOpponent.name}
               </span>
@@ -1449,10 +1699,10 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
         </div>
 
         {/* Center Table Arena (Draw Pile & Discard Pile) */}
-        <div className="flex flex-col items-center justify-center gap-1.5 my-auto">
+        <div className="flex flex-col items-center justify-center gap-1.5 my-auto min-w-0 flex-1">
           {/* Action Notification Toast Banner */}
           {actionNotification && (
-            <div className="px-3 py-1 rounded-full bg-slate-900/90 border border-slate-700/80 text-[11px] font-mono text-cyan-300 max-w-xs text-center shadow-lg backdrop-blur-sm truncate">
+            <div className="max-w-[80vw] sm:max-w-xs px-3 py-1 rounded-full bg-slate-900/90 border border-slate-700/80 text-[11px] font-mono text-cyan-300 text-center shadow-lg backdrop-blur-sm truncate">
               {actionNotification}
             </div>
           )}
@@ -1497,12 +1747,13 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
         <div className="w-16 sm:w-20 shrink-0 flex flex-col items-center">
           {rightOpponent && (
             <div
-              className={`p-1.5 rounded-xl border text-center transition-all ${
+              className={`relative p-1.5 rounded-xl border text-center transition-all ${
                 rightOpponent.isActive
                   ? 'bg-emerald-950/50 border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)] ring-1 ring-emerald-400'
                   : 'bg-slate-900/70 border-slate-800 opacity-90'
               }`}
             >
+              <EmojiBubble playerId={rightOpponent.id} />
               <span className="text-[10px] font-orbitron font-bold text-emerald-300 block truncate">
                 {rightOpponent.name}
               </span>
@@ -1532,7 +1783,8 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
                 isHumanTurn ? 'bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]' : 'bg-slate-700'
               }`}
             />
-            <div className="text-left">
+            <div className="relative text-left">
+              <EmojiBubble playerId={bottomPlayerId} />
               <span className="text-xs font-orbitron font-black tracking-wide text-cyan-300">
                 {bottomPlayerName}
               </span>
@@ -1554,17 +1806,50 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
             )}
 
             {/* UNO Call Button */}
-            <button
-              onClick={handleCallUno}
-              disabled={!isHumanTurn && !unoPendingPlayerId}
-              className={`px-3 py-1 rounded-xl font-orbitron font-black text-xs tracking-wider border cursor-pointer transition-all ${
-                unoPendingPlayerId || myHand.length <= 2
-                  ? 'bg-gradient-to-r from-red-600 to-amber-500 border-red-400 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] animate-pulse'
-                  : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-400'
-              }`}
-            >
-              UNO!
-            </button>
+            <div className="relative">
+              {isMyUnoPending && (
+                <svg
+                  className="absolute -inset-1 pointer-events-none"
+                  viewBox="0 0 44 44"
+                  preserveAspectRatio="none"
+                >
+                  <circle
+                    cx="22"
+                    cy="22"
+                    r="19"
+                    fill="none"
+                    stroke="rgba(248,113,113,0.25)"
+                    strokeWidth="2.5"
+                  />
+                  <motion.circle
+                    key={unoRingKey}
+                    cx="22"
+                    cy="22"
+                    r="19"
+                    fill="none"
+                    stroke="#f87171"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    pathLength={1}
+                    initial={{ pathLength: 1 }}
+                    animate={{ pathLength: 0 }}
+                    transition={{ duration: unoRingDurationSec, ease: 'linear' }}
+                    style={{ rotate: -90, transformOrigin: '50% 50%' }}
+                  />
+                </svg>
+              )}
+              <button
+                onClick={handleCallUno}
+                disabled={!isHumanTurn && !unoPendingPlayerId}
+                className={`relative px-3 py-1 rounded-xl font-orbitron font-black text-xs tracking-wider border cursor-pointer transition-all ${
+                  isMyUnoPending || unoPendingPlayerId || myHand.length <= 2
+                    ? 'bg-gradient-to-r from-red-600 to-amber-500 border-red-400 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] animate-pulse'
+                    : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-400'
+                }`}
+              >
+                UNO!
+              </button>
+            </div>
           </div>
         </div>
 

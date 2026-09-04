@@ -274,6 +274,7 @@ class UnoRoomManager {
 
   private hostOnClose(conn: DataConnection) {
     const seat = this.seatByPeer.get(conn.peer);
+    const name = seat !== undefined ? this.nameBySeat.get(seat) : undefined;
     this.connByPeer.delete(conn.peer);
     this.seatByPeer.delete(conn.peer);
     if (seat !== undefined && !this.locked) {
@@ -281,6 +282,13 @@ class UnoRoomManager {
       this.tokenBySeat.delete(seat);
       this.hostBroadcastLobby();
       this.emitLobby();
+    } else if (seat !== undefined && this.locked && name) {
+      // Mid-game disconnect: the seat/name stay reserved (so a rejoin with
+      // the same token can reclaim it), but everyone still connected
+      // (including the host's own UI) should be told this player left.
+      const leftMsg: UnoRoomMessage = { type: 'PLAYER_LEFT', seatIndex: seat, name };
+      this.emitMsg(leftMsg);
+      this.hostBroadcast(leftMsg);
     }
   }
 

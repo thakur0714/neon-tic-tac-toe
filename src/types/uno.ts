@@ -121,6 +121,10 @@ export interface UnoOnlineSnapshot {
   isMyTurn: boolean;
   initialCardCount?: number;
   isDealing?: boolean;
+  /** Seat that must call UNO! before `unoDeadlineAt`, or null/undefined if none pending. */
+  unoPendingSeat?: number | null;
+  /** Epoch ms when the pending seat's grace window (host-enforced) expires. */
+  unoDeadlineAt?: number | null;
 }
 
 export type UnoRoomMessage =
@@ -137,5 +141,6 @@ export type UnoRoomMessage =
       chosenColor?: UnoCardColor;
     }
   | { type: 'HOST_LEFT' }
+  | { type: 'PLAYER_LEFT'; seatIndex: number; name: string }
   | { type: 'PING'; t: number }
   | { type: 'PONG'; t: number };

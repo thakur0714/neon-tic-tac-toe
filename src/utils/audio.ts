@@ -991,6 +991,36 @@ export function playUnoPenaltySound(enabled = true) {
 }
 
 /**
+ * Playful Emoji Reaction Pop (power-card reactions: happy/angry/laugh bubbles)
+ */
+export function playUnoEmojiPopSound(enabled = true) {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(520, now);
+    osc.frequency.exponentialRampToValueAtTime(880, now + 0.09);
+    osc.frequency.exponentialRampToValueAtTime(660, now + 0.16);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.exponentialRampToValueAtTime(0.22, now + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.22);
+  } catch {}
+}
+
+/**
  * Realistic Riffle Deck Shuffle Sound (Card split, cascade flutter & bridge finish)
  */
 export function playUnoRiffleShuffleSound(enabled = true) {
