@@ -13,6 +13,7 @@ interface CarromControlsProps {
   disabled: boolean;
   isMyTurn: boolean;
   canPlaceHere: boolean;
+  isFlippedView?: boolean;
 }
 
 export const CarromControls: React.FC<CarromControlsProps> = ({
@@ -26,11 +27,20 @@ export const CarromControls: React.FC<CarromControlsProps> = ({
   disabled,
   isMyTurn,
   canPlaceHere,
+  isFlippedView = false,
 }) => {
+  const displaySliderX = isFlippedView ? 1 - strikerSliderX : strikerSliderX;
+
   const handleNudgeSlider = (delta: number) => {
     if (disabled || !isMyTurn) return;
-    const next = Math.max(0, Math.min(1, strikerSliderX + delta));
-    onSliderChange(next);
+    const nextDisplay = Math.max(0, Math.min(1, displaySliderX + delta));
+    const nextCanonical = isFlippedView ? 1 - nextDisplay : nextDisplay;
+    onSliderChange(nextCanonical);
+  };
+
+  const handleSliderInput = (val: number) => {
+    const nextCanonical = isFlippedView ? 1 - val : val;
+    onSliderChange(nextCanonical);
   };
 
   const handleNudgeAngle = (degrees: number) => {
@@ -78,9 +88,9 @@ export const CarromControls: React.FC<CarromControlsProps> = ({
             min={0}
             max={1}
             step={0.01}
-            value={strikerSliderX}
+            value={displaySliderX}
             disabled={disabled || !isMyTurn}
-            onChange={(e) => onSliderChange(parseFloat(e.target.value))}
+            onChange={(e) => handleSliderInput(parseFloat(e.target.value))}
             className="flex-1 accent-cyan-400 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
           />
 

@@ -10,6 +10,7 @@ import {
   Sparkles,
   Loader2,
   Crown,
+  Layers,
 } from 'lucide-react';
 import { unoRoomManager } from '../../../utils/unoRoomManager';
 import { UnoLobbyState, UnoRoomStatus } from '../../../types/uno';
@@ -21,6 +22,7 @@ export interface UnoOnlineStartInfo {
   playerCount: number;
   players: Array<{ index: number; name: string; avatarColor: string }>;
   cardEightWild: boolean;
+  initialCardCount: number;
 }
 
 interface UnoOnlineModalProps {
@@ -40,6 +42,7 @@ export const UnoOnlineModal: React.FC<UnoOnlineModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'create' | 'join'>('create');
   const [playerCount, setPlayerCount] = useState<2 | 3 | 4>(2);
+  const [initialCardCount, setInitialCardCount] = useState<3 | 5 | 7>(7);
   const [playerName, setPlayerName] = useState(() => {
     try {
       return (
@@ -90,6 +93,7 @@ export const UnoOnlineModal: React.FC<UnoOnlineModalProps> = ({
                 avatarColor: s.avatarColor,
               })),
             cardEightWild: currentLobby.cardEightWild,
+            initialCardCount: currentLobby.initialCardCount || unoRoomManager.getInitialCardCount() || 7,
           });
           onClose();
         }
@@ -121,7 +125,12 @@ export const UnoOnlineModal: React.FC<UnoOnlineModalProps> = ({
     playClickSound(soundEnabled);
     setErrorMessage('');
     try {
-      await unoRoomManager.createRoom(playerCount, playerName.trim() || 'Host', cardEightWild);
+      await unoRoomManager.createRoom(
+        playerCount,
+        playerName.trim() || 'Host',
+        cardEightWild,
+        initialCardCount
+      );
     } catch (e: any) {
       setErrorMessage(e?.message || 'Failed to create room.');
     }
@@ -270,6 +279,47 @@ export const UnoOnlineModal: React.FC<UnoOnlineModalProps> = ({
                   </div>
                 </div>
 
+                {/* Starting Cards Selection */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-orbitron font-bold text-slate-400 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <Layers className="w-3 h-3 text-cyan-400" />
+                      <span>STARTING CARDS</span>
+                    </span>
+                    <span className="text-[10px] text-purple-300 font-mono font-bold">
+                      {initialCardCount === 3
+                        ? '⚡ 3 Cards (Blitz)'
+                        : initialCardCount === 5
+                        ? '🔥 5 Cards (Speed)'
+                        : '🏆 7 Cards (Classic)'}
+                    </span>
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { count: 3, label: '3 CARDS', tag: '⚡ Blitz' },
+                      { count: 5, label: '5 CARDS', tag: '🔥 Speed' },
+                      { count: 7, label: '7 CARDS', tag: '🏆 Classic' },
+                    ].map((item) => (
+                      <button
+                        key={item.count}
+                        type="button"
+                        onClick={() => {
+                          playClickSound(soundEnabled);
+                          setInitialCardCount(item.count as any);
+                        }}
+                        className={`py-2 rounded-xl border font-orbitron text-xs font-bold transition-all cursor-pointer ${
+                          initialCardCount === item.count
+                            ? 'bg-purple-500/20 border-purple-400 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.3)]'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <div>{item.label}</div>
+                        <div className="text-[9px] text-purple-400 font-bold mt-0.5">{item.tag}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
                   Creates a private 4-digit code. Share with friends on any phone or browser to duel in real-time!
                 </div>
@@ -351,6 +401,21 @@ export const UnoOnlineModal: React.FC<UnoOnlineModalProps> = ({
               {copied && (
                 <span className="text-[10px] text-emerald-400 font-mono">Code copied to clipboard!</span>
               )}
+            </div>
+
+            {/* Lobby Match Pace Info */}
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-950/80 border border-purple-500/30 text-xs">
+              <span className="text-slate-400 font-orbitron text-[10px] flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-purple-400" />
+                <span>MATCH RULES:</span>
+              </span>
+              <span className="font-orbitron font-bold text-purple-300 text-[11px]">
+                {lobby.initialCardCount === 3
+                  ? '⚡ 3 Cards (Blitz)'
+                  : lobby.initialCardCount === 5
+                  ? '🔥 5 Cards (Speed)'
+                  : '🏆 7 Cards (Classic)'}
+              </span>
             </div>
 
             {/* Players List */}

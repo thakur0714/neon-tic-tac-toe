@@ -37,6 +37,7 @@ interface CarromBoardProps {
   strikerSliderX: number;
   onSliderChange: (val: number) => void;
   soundEnabled: boolean;
+  isFlippedView?: boolean;
 }
 
 export const CarromBoard: React.FC<CarromBoardProps> = ({
@@ -52,6 +53,7 @@ export const CarromBoard: React.FC<CarromBoardProps> = ({
   onFireShot,
   strikerSliderX,
   onSliderChange,
+  isFlippedView = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [pullState, setPullState] = useState<PullState | null>(null);
@@ -60,18 +62,30 @@ export const CarromBoard: React.FC<CarromBoardProps> = ({
   const dragStartRef = useRef<Vector2D>({ x: 0, y: 0 });
 
   // Convert client touch/mouse coordinates to virtual 600x600 board space
-  const getBoardCoords = useCallback((e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent): Vector2D => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    const clientX = 'touches' in e && e.touches.length > 0 ? e.touches[0].clientX : (e as MouseEvent).clientX;
-    const clientY = 'touches' in e && e.touches.length > 0 ? e.touches[0].clientY : (e as MouseEvent).clientY;
-    const scale = BOARD_SIZE / rect.width;
-    return {
-      x: (clientX - rect.left) * scale,
-      y: (clientY - rect.top) * scale,
-    };
-  }, []);
+  const getBoardCoords = useCallback(
+    (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent): Vector2D => {
+      const canvas = canvasRef.current;
+      if (!canvas) return { x: 0, y: 0 };
+      const rect = canvas.getBoundingClientRect();
+      const clientX = 'touches' in e && e.touches.length > 0 ? e.touches[0].clientX : (e as MouseEvent).clientX;
+      const clientY = 'touches' in e && e.touches.length > 0 ? e.touches[0].clientY : (e as MouseEvent).clientY;
+      const scale = BOARD_SIZE / rect.width;
+      const rawX = (clientX - rect.left) * scale;
+      const rawY = (clientY - rect.top) * scale;
+
+      if (isFlippedView) {
+        return {
+          x: BOARD_SIZE - rawX,
+          y: BOARD_SIZE - rawY,
+        };
+      }
+      return {
+        x: rawX,
+        y: rawY,
+      };
+    },
+    [isFlippedView]
+  );
 
   // ── Render Board & Pieces ───────────────────────────────────────
   useEffect(() => {
@@ -83,6 +97,16 @@ export const CarromBoard: React.FC<CarromBoardProps> = ({
     // Reset transform
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, BOARD_SIZE, BOARD_SIZE);
+
+    // Save base transform state
+    ctx.save();
+
+    // Rotate 180 deg if viewing from player 2 perspective so their baseline is at the bottom
+    if (isFlippedView) {
+      ctx.translate(BOARD_SIZE / 2, BOARD_SIZE / 2);
+      ctx.rotate(Math.PI);
+      ctx.translate(-BOARD_SIZE / 2, -BOARD_SIZE / 2);
+    }
 
     // 1. Board Wooden Outer Frame
     ctx.fillStyle = '#2b1810';
@@ -473,16 +497,34 @@ export const CarromBoard: React.FC<CarromBoardProps> = ({
         ctx.textAlign = 'center';
         ctx.shadowColor = 'rgba(0,0,0,0.85)';
         ctx.shadowBlur = 6;
-        ctx.fillText(
-          `${Math.round(power * 100)}% · RELEASE TO STRIKE`,
-          pullState.currentX,
-          pullState.currentY + 28
-        );
+
+        // If flipped, rotate text 180 deg around text center so it is upright to player
+        if (isFlippedView) {
+          ctx.save();
+          ctx.translate(pullState.currentX, pullState.currentY + 28);
+          ctx.rotate(Math.PI);
+          ctx.translate(-pullState.currentX, -(pullState.currentY + 28));
+          ctx.fillText(
+            `${Math.round(power * 100)}% · RELEASE TO STRIKE`,
+            pullState.currentX,
+            pullState.currentY + 28
+          );
+          ctx.restore();
+        } else {
+          ctx.fillText(
+            `${Math.round(power * 100)}% · RELEASE TO STRIKE`,
+            pullState.currentX,
+            pullState.currentY + 28
+          );
+        }
 
         ctx.restore();
       }
     }
-  }, [pieces, striker, currentTurn, isAiming, isMoving, aimAngle, aimPower, pullState]);
+
+    // Restore base transform state
+    ctx.restore();
+  }, [pieces, striker, currentTurn, isAiming, isMoving, aimAngle, aimPower, pullState, isFlippedView]);
 
   // ── Touch & Pointer Interaction ────────────────────────────────
   const handlePointerDown = (e: React.MouseEvent | React.TouchEvent) => {

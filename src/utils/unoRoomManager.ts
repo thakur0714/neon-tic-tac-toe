@@ -20,6 +20,7 @@ class UnoRoomManager {
   private roomCode = '';
   private maxPlayers = 2;
   private cardEightWild = true;
+  private initialCardCount = 7;
   private locked = false;
   private myName = 'Player 1';
   private mySeatIndex: number | null = null;
@@ -106,6 +107,10 @@ class UnoRoomManager {
     return this.latency;
   }
 
+  getInitialCardCount(): number {
+    return this.initialCardCount;
+  }
+
   getLobby(): UnoLobbyState {
     const seats: UnoSeatInfo[] = [];
     for (let i = 0; i < this.maxPlayers; i++) {
@@ -134,6 +139,7 @@ class UnoRoomManager {
       locked: this.locked,
       roomCode: this.roomCode,
       cardEightWild: this.cardEightWild,
+      initialCardCount: this.initialCardCount,
     };
   }
 
@@ -143,12 +149,14 @@ class UnoRoomManager {
   async createRoom(
     playerCount: 2 | 3 | 4,
     hostName: string,
-    isEightWild = true
+    isEightWild = true,
+    initialCardCount = 7
   ): Promise<string> {
     this.cleanup();
     this.role = 'host';
     this.maxPlayers = playerCount;
     this.cardEightWild = isEightWild;
+    this.initialCardCount = initialCardCount;
     this.myName = hostName || 'Host';
     this.mySeatIndex = 0;
     this.nameBySeat.set(0, this.myName);
@@ -303,7 +311,7 @@ class UnoRoomManager {
     if (this.role !== 'host') return;
     this.locked = true;
     this.emitStatus('playing');
-    this.hostBroadcast({ type: 'START' });
+    this.hostBroadcast({ type: 'START', initialCardCount: this.initialCardCount });
     this.startPingLoop();
   }
 
@@ -372,6 +380,9 @@ class UnoRoomManager {
     if (msg.type === 'LOBBY') {
       this.maxPlayers = msg.lobby.maxPlayers;
       this.cardEightWild = msg.lobby.cardEightWild;
+      if (msg.lobby.initialCardCount) {
+        this.initialCardCount = msg.lobby.initialCardCount;
+      }
       const mySeat = msg.lobby.seats.find((s) => s.index === this.mySeatIndex);
       if (mySeat) {
         this.nameBySeat.set(this.mySeatIndex!, mySeat.name);
@@ -381,6 +392,9 @@ class UnoRoomManager {
     }
 
     if (msg.type === 'START') {
+      if (msg.initialCardCount) {
+        this.initialCardCount = msg.initialCardCount;
+      }
       this.emitStatus('playing');
       this.startPingLoop();
       return;
@@ -458,6 +472,7 @@ class UnoRoomManager {
     this.status = 'idle';
     this.roomCode = '';
     this.locked = false;
+    this.initialCardCount = 7;
     this.mySeatIndex = null;
     this.seatByPeer.clear();
     this.nameBySeat.clear();

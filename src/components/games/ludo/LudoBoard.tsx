@@ -69,32 +69,75 @@ const PIP_LAYOUT: Record<number, number[]> = {
   6: [0, 2, 3, 5, 6, 8],
 };
 
-function renderPips(val: number, color: LudoColor, isCyber: boolean) {
+// Pre-computed lookup tables at module level (prevents re-allocation on each render)
+const STATIC_TRACK_MAP = new Map<
+  string,
+  {
+    trackIndex: number;
+    isSafe: boolean;
+    isStart: boolean;
+    startColor?: LudoColor;
+  }
+>();
+
+MAIN_TRACK_COORDINATES.forEach((coord, idx) => {
+  const key = `${coord.r}_${coord.c}`;
+  let startColor: LudoColor | undefined;
+  if (idx === COLOR_START_INDICES.red) startColor = "red";
+  if (idx === COLOR_START_INDICES.green) startColor = "green";
+  if (idx === COLOR_START_INDICES.yellow) startColor = "yellow";
+  if (idx === COLOR_START_INDICES.blue) startColor = "blue";
+
+  STATIC_TRACK_MAP.set(key, {
+    trackIndex: idx,
+    isSafe: SAFE_TRACK_INDICES.has(idx),
+    isStart: startColor !== undefined,
+    startColor,
+  });
+});
+
+const STATIC_HOME_PATH_MAP = new Map<string, { color: LudoColor; stepIndex: number }>();
+(["red", "green", "yellow", "blue"] as LudoColor[]).forEach((col) => {
+  HOME_PATH_COORDINATES[col].forEach((coord, stepIdx) => {
+    STATIC_HOME_PATH_MAP.set(`${coord.r}_${coord.c}`, { color: col, stepIndex: stepIdx });
+  });
+});
+
+// Render authentic dice pips: Clean high-contrast dots on pure white acrylic
+function renderWhiteDicePips(val: number, color: LudoColor) {
   const colTheme = LUDO_COLOR_THEMES[color];
-  const dotColor = isCyber ? colTheme.neonColor : "#1E1B16";
-  const dotGlow = isCyber
-    ? `0 0 5px ${colTheme.neonColor}, 0 0 1px ${colTheme.neonColor}`
-    : "inset 0 -1px 1px rgba(0,0,0,0.35)";
-  const pips = PIP_LAYOUT[Math.min(6, Math.max(1, val))] || PIP_LAYOUT[6];
+  const pips = PIP_LAYOUT[Math.min(6, Math.max(1, val))] || PIP_LAYOUT[1];
+  const isOne = val === 1;
+
   return (
-    <div className="grid h-full w-full grid-cols-3 grid-rows-3 place-items-center p-[15%]">
-      {Array.from({ length: 9 }).map((_, i) => (
-        <span
-          key={i}
-          className="rounded-full transition-all"
-          style={{
-            width: "68%",
-            height: "68%",
-            backgroundColor: pips.includes(i) ? dotColor : "transparent",
-            boxShadow: pips.includes(i) ? dotGlow : "none",
-          }}
-        />
-      ))}
+    <div className="grid h-full w-full grid-cols-3 grid-rows-3 place-items-center p-[14%] select-none pointer-events-none">
+      {Array.from({ length: 9 }).map((_, i) => {
+        const hasPip = pips.includes(i);
+        if (!hasPip) return <span key={i} className="w-full h-full" />;
+
+        // Face 1 has the bold player color centerpiece; 2-6 have deep obsidian black/slate dots with subtle depth
+        const dotColor = isOne ? colTheme.neonColor : "#0F172A";
+
+        return (
+          <span
+            key={i}
+            className="rounded-full transition-all duration-75"
+            style={{
+              width: "72%",
+              height: "72%",
+              backgroundColor: dotColor,
+              boxShadow: isOne
+                ? `0 0 6px ${colTheme.neonColor}aa, inset 0 1px 1px rgba(0,0,0,0.4)`
+                : "inset 0 1px 2px rgba(0,0,0,0.7), 0 1px 1px rgba(255,255,255,0.7)",
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
 
-// Realistic tumbling dice used inside the active player's home base
+// 3D WHITE DICE component used inside the active player's home base terminal
 const BaseTerminalDice: React.FC<{
   color: LudoColor;
   colTheme: (typeof LUDO_COLOR_THEMES)[LudoColor];
@@ -107,96 +150,241 @@ const BaseTerminalDice: React.FC<{
 }> = ({
   color,
   colTheme,
-  isCyber,
   canRoll,
   isRolling,
   diceValue,
   hint,
   onRoll,
 }) => {
-  const [tumbleFace, setTumbleFace] = useState(diceValue || 6);
+  // Never default to 6! Keep track of the last genuine roll face
+  const [tumbleFace, setTumbleFace] = useState<number>(1);
+  const [lastFace, setLastFace] = useState<number>(diceValue && diceValue >= 1 && diceValue <= 6 ? diceValue : 1);
+
+  useEffect(() => {
+    if (diceValue && diceValue >= 1 && diceValue <= 6) {
+      setLastFace(diceValue);
+    }
+  }, [diceValue]);
 
   useEffect(() => {
     if (!isRolling) return;
     const id = setInterval(
       () => setTumbleFace(Math.floor(Math.random() * 6) + 1),
-      80,
+      65,
     );
     return () => clearInterval(id);
   }, [isRolling]);
 
-  const dieFace = isRolling ? tumbleFace : diceValue || 6;
+  const dieFace = isRolling ? tumbleFace : (diceValue ?? lastFace ?? 1);
 
   return (
-    <div className="flex h-full w-full items-center justify-center">
+    <div className="flex h-full w-full items-center justify-center p-0.5 select-none">
       <motion.button
         type="button"
-        whileHover={canRoll ? { scale: 1.06 } : undefined}
-        whileTap={canRoll ? { scale: 0.9 } : undefined}
-        onClick={canRoll ? onRoll : undefined}
-        disabled={!canRoll}
+        whileHover={canRoll && !isRolling ? { scale: 1.08 } : undefined}
+        whileTap={canRoll && !isRolling ? { scale: 0.92 } : undefined}
+        onClick={canRoll && !isRolling ? onRoll : undefined}
+        disabled={!canRoll || isRolling}
         aria-label={hint}
-        className={`relative flex items-center justify-center ${canRoll ? "cursor-pointer" : "cursor-default"}`}
+        className={`relative flex items-center justify-center ${canRoll && !isRolling ? "cursor-pointer" : "cursor-default"}`}
         style={{
-          width: "62%",
-          maxWidth: 44,
+          width: "86%",
+          height: "86%",
+          maxWidth: 52,
+          maxHeight: 52,
           aspectRatio: "1 / 1",
-          perspective: 260,
+          perspective: 300,
         }}
       >
-        {canRoll && (
+        {/* Pulsing beacon ring when it's your turn to roll */}
+        {canRoll && !isRolling && (
           <motion.span
-            className="pointer-events-none absolute -inset-1.5 rounded-[28%]"
+            className="pointer-events-none absolute -inset-1.5 rounded-2xl"
             style={{ backgroundColor: colTheme.neonColor }}
-            animate={{ opacity: [0.35, 0, 0.35], scale: [0.9, 1.25, 0.9] }}
-            transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+            animate={{ opacity: [0.55, 0.1, 0.55], scale: [0.95, 1.25, 0.95] }}
+            transition={{ duration: 1.3, repeat: Infinity, ease: "easeInOut" }}
           />
         )}
 
+        {/* 3D Pure White Acrylic Dice Cube */}
         <motion.div
-          className="relative h-full w-full rounded-[26%]"
+          className="relative h-full w-full rounded-xl sm:rounded-2xl"
           style={{
             transformStyle: "preserve-3d",
-            background: isCyber
-              ? `linear-gradient(150deg, #10141f 0%, #060912 60%, #0d1220 100%)`
-              : `linear-gradient(150deg, #ffffff 0%, #f2ead4 55%, #e2d4ad 100%)`,
-            border: `1.5px solid ${isCyber ? colTheme.neonBorder : "#c8b78a"}`,
-            boxShadow: isCyber
-              ? `0 0 14px ${colTheme.neonColor}aa, inset 0 2px 5px rgba(255,255,255,0.12), inset 0 -3px 6px rgba(0,0,0,0.55)`
-              : `0 5px 10px rgba(0,0,0,0.35), inset 0 3px 5px rgba(255,255,255,0.85), inset 0 -4px 7px rgba(0,0,0,0.22)`,
+            // AUTHENTIC WHITE LUDO DICE BODY
+            background: "linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 55%, #E2E8F0 100%)",
+            border: "2px solid #CBD5E1",
+            boxShadow: canRoll && !isRolling
+              ? `0 8px 18px -2px rgba(0,0,0,0.5), 0 0 14px ${colTheme.neonColor}70, inset 0 2px 4px #FFFFFF, inset 0 -3px 5px rgba(0,0,0,0.12)`
+              : "0 6px 14px -2px rgba(0,0,0,0.4), inset 0 2px 4px #FFFFFF, inset 0 -3px 5px rgba(0,0,0,0.12)",
           }}
           animate={
             isRolling
               ? {
-                  rotateX: [0, -32, 24, -14, 0],
-                  rotateZ: [0, 14, -12, 7, 0],
-                  y: [0, -6, 0, -3, 0],
-                  scale: [1, 1.05, 0.97, 1.03, 1],
+                  rotateX: [0, 180, 360, 540, 720],
+                  rotateY: [0, -180, -360, -540, -720],
+                  rotateZ: [0, 45, -45, 90, 0],
+                  scale: [1, 1.12, 0.94, 1.08, 1],
                 }
-              : { rotateX: 0, rotateZ: 0, y: 0, scale: 1 }
+              : { rotateX: 0, rotateY: 0, rotateZ: 0, scale: 1 }
           }
           transition={
             isRolling
-              ? { duration: 0.5, repeat: Infinity, ease: "easeInOut" }
-              : { type: "spring", stiffness: 380, damping: 14 }
+              ? { duration: 0.5, repeat: Infinity, ease: "linear" }
+              : { type: "spring", stiffness: 450, damping: 20 }
           }
         >
-          <motion.div
-            key={isRolling ? "tumble" : `settled-${dieFace}`}
-            className="absolute inset-0"
-            initial={
-              isRolling ? false : { scale: 0.7, rotate: -20, opacity: 0.4 }
-            }
-            animate={isRolling ? {} : { scale: 1, rotate: 0, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 500, damping: 18 }}
-          >
-            {renderPips(dieFace, color, isCyber)}
-          </motion.div>
+          <div className="absolute inset-0">
+            {renderWhiteDicePips(dieFace, color)}
+          </div>
+          {/* Glossy top-light sheen */}
+          <div className="absolute inset-x-1 top-0.5 h-1/3 rounded-t-xl bg-gradient-to-b from-white/90 to-transparent pointer-events-none opacity-80" />
         </motion.div>
       </motion.button>
     </div>
   );
 };
+
+// Memoized Static Board Track Cells Component (225 cells)
+// This prevents 225 DOM elements from re-rendering and allocating memory on every single token step!
+const StaticBoardTrackCells = React.memo<{
+  isCyber: boolean;
+  activeColors: Set<LudoColor>;
+}>(({ isCyber, activeColors }) => {
+  const isActive = (c: LudoColor) => activeColors.has(c);
+
+  return (
+    <>
+      {Array.from({ length: 15 }).map((_, r) =>
+        Array.from({ length: 15 }).map((_, c) => {
+          const isRedBase = r < 6 && c < 6;
+          const isGreenBase = r < 6 && c >= 9;
+          const isBlueBase = r >= 9 && c < 6;
+          const isYellowBase = r >= 9 && c >= 9;
+          const isCenterHome = r >= 6 && r <= 8 && c >= 6 && c <= 8;
+
+          if (
+            isRedBase ||
+            isGreenBase ||
+            isBlueBase ||
+            isYellowBase ||
+            isCenterHome
+          )
+            return null;
+
+          const cellKey = `${r}_${c}`;
+          const trackInfo = STATIC_TRACK_MAP.get(cellKey);
+          const homePathInfo = STATIC_HOME_PATH_MAP.get(cellKey);
+
+          let cellStyle: React.CSSProperties = {
+            background: isCyber ? "#0a1120" : "#fbf5e6",
+            borderColor: isCyber
+              ? "rgba(80,110,160,0.14)"
+              : "rgba(60,45,25,0.28)",
+            boxShadow: isCyber
+              ? "inset 0 0 6px rgba(0,0,0,0.5)"
+              : "inset 0 0 3px rgba(0,0,0,0.12)",
+          };
+          let content: React.ReactNode = null;
+
+          if (homePathInfo) {
+            const themeCol = LUDO_COLOR_THEMES[homePathInfo.color];
+            cellStyle = {
+              background: isCyber
+                ? `linear-gradient(180deg, ${themeCol.neonColor}44, ${themeCol.neonColor}22)`
+                : `linear-gradient(180deg, ${themeCol.classicColor}, ${themeCol.classicDark})`,
+              borderColor: isCyber
+                ? `${themeCol.neonColor}66`
+                : themeCol.classicBorder,
+              boxShadow: isCyber
+                ? `inset 0 0 8px ${themeCol.neonColor}55`
+                : "inset 0 1px 2px rgba(255,255,255,0.35)",
+              opacity: isActive(homePathInfo.color) ? 1 : 0.22,
+            };
+          } else if (trackInfo) {
+            if (trackInfo.isStart && trackInfo.startColor) {
+              const themeCol = LUDO_COLOR_THEMES[trackInfo.startColor];
+              cellStyle = {
+                background: isCyber
+                  ? `radial-gradient(circle, ${themeCol.neonColor}55, ${themeCol.neonColor}22)`
+                  : `linear-gradient(180deg, ${themeCol.classicColor}, ${themeCol.classicDark})`,
+                borderColor: isCyber
+                  ? themeCol.neonColor
+                  : themeCol.classicBorder,
+                boxShadow: isCyber
+                  ? `inset 0 0 10px ${themeCol.neonColor}`
+                  : "inset 0 1px 2px rgba(255,255,255,0.4)",
+                opacity: isActive(trackInfo.startColor) ? 1 : 0.3,
+              };
+              content = (
+                <Star
+                  className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 drop-shadow"
+                  style={{
+                    color: "#fff",
+                    fill: isCyber ? themeCol.neonColor : "#ffffffcc",
+                  }}
+                />
+              );
+            } else if (trackInfo.isSafe) {
+              cellStyle = {
+                background: isCyber
+                  ? "radial-gradient(circle, #1c2740, #0a1120)"
+                  : "#f3e8c9",
+                borderColor: isCyber
+                  ? "rgba(251,191,36,0.5)"
+                  : "rgba(180,130,40,0.5)",
+                boxShadow: isCyber
+                  ? "inset 0 0 8px rgba(251,191,36,0.35)"
+                  : "inset 0 0 4px rgba(0,0,0,0.15)",
+              };
+              content = (
+                <Star className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-amber-400 fill-amber-400 drop-shadow" />
+              );
+            } else if (r === 7 && c === 0)
+              content = (
+                <ArrowRight
+                  className="w-2.5 h-2.5 sm:w-3 sm:h-3"
+                  style={{ color: LUDO_COLOR_THEMES.red.neonBorder }}
+                />
+              );
+            else if (r === 0 && c === 7)
+              content = (
+                <ArrowDown
+                  className="w-2.5 h-2.5 sm:w-3 sm:h-3"
+                  style={{ color: LUDO_COLOR_THEMES.green.neonBorder }}
+                />
+              );
+            else if (r === 7 && c === 14)
+              content = (
+                <ArrowLeft
+                  className="w-2.5 h-2.5 sm:w-3 sm:h-3"
+                  style={{ color: LUDO_COLOR_THEMES.yellow.neonBorder }}
+                />
+              );
+            else if (r === 14 && c === 7)
+              content = (
+                <ArrowUp
+                  className="w-2.5 h-2.5 sm:w-3 sm:h-3"
+                  style={{ color: LUDO_COLOR_THEMES.blue.neonBorder }}
+                />
+              );
+          }
+
+          return (
+            <div
+              key={cellKey}
+              style={{ gridRow: r + 1, gridColumn: c + 1, ...cellStyle }}
+              className="w-full h-full flex items-center justify-center border rounded-[2px] sm:rounded-[3px] relative"
+            >
+              {content}
+            </div>
+          );
+        })
+      )}
+    </>
+  );
+});
+StaticBoardTrackCells.displayName = "StaticBoardTrackCells";
 
 export const LudoBoard: React.FC<LudoBoardProps> = ({
   players,
@@ -219,8 +407,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
 
   // Active tokens list with exact (r, c) coordinates
   const allTokens = useMemo(() => {
-    const list: Array<{ token: LudoToken; coords: { r: number; c: number } }> =
-      [];
+    const list: Array<{ token: LudoToken; coords: { r: number; c: number } }> = [];
     players.forEach((player) => {
       if (player.type === "none") return;
       player.tokens.forEach((token) => {
@@ -247,47 +434,6 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
     return map;
   }, [allTokens]);
 
-  // Fast track cells lookup
-  const trackMap = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        trackIndex: number;
-        isSafe: boolean;
-        isStart: boolean;
-        startColor?: LudoColor;
-      }
-    >();
-
-    MAIN_TRACK_COORDINATES.forEach((coord, idx) => {
-      const key = `${coord.r}_${coord.c}`;
-      let startColor: LudoColor | undefined;
-      if (idx === COLOR_START_INDICES.red) startColor = "red";
-      if (idx === COLOR_START_INDICES.green) startColor = "green";
-      if (idx === COLOR_START_INDICES.yellow) startColor = "yellow";
-      if (idx === COLOR_START_INDICES.blue) startColor = "blue";
-
-      map.set(key, {
-        trackIndex: idx,
-        isSafe: SAFE_TRACK_INDICES.has(idx),
-        isStart: startColor !== undefined,
-        startColor,
-      });
-    });
-    return map;
-  }, []);
-
-  // Fast Home Path lookup
-  const homePathMap = useMemo(() => {
-    const map = new Map<string, { color: LudoColor; stepIndex: number }>();
-    (["red", "green", "yellow", "blue"] as LudoColor[]).forEach((col) => {
-      HOME_PATH_COORDINATES[col].forEach((coord, stepIdx) => {
-        map.set(`${coord.r}_${coord.c}`, { color: col, stepIndex: stepIdx });
-      });
-    });
-    return map;
-  }, []);
-
   const handleYardDiceClick = () => {
     if (turnState === "waiting_roll" && onRollDice) {
       triggerHaptic("medium");
@@ -296,13 +442,13 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
   };
 
   return (
-    <div className="w-full h-full flex items-center justify-center p-1 sm:p-2 select-none">
-      {/* Master Board Container */}
+    <div className="w-full h-full flex items-center justify-center p-0.5 sm:p-2 select-none">
+      {/* Master Board Container - Maximized for Mobile Screen Real Estate */}
       <div
-        className={`w-full max-w-[min(94vw,70vh)] aspect-square rounded-3xl p-1.5 sm:p-2.5 relative shadow-2xl transition-all duration-300 ${
+        className={`w-full max-w-[min(98vw,calc(100dvh-175px))] sm:max-w-[min(92vw,68vh)] aspect-square rounded-2xl sm:rounded-3xl p-1 sm:p-2 relative shadow-2xl transition-all duration-300 ${
           isCyber
             ? "border-2 border-slate-700/70"
-            : "border-[5px] border-[#5b3b21]"
+            : "border-[4px] sm:border-[5px] border-[#5b3b21]"
         }`}
         style={{
           background: isCyber
@@ -323,7 +469,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
               ? "radial-gradient(circle at 50% 50%, #0a0f1d 0%, #05070e 100%)"
               : "#f7edd8",
           }}
-          className={`w-full h-full relative rounded-2xl overflow-hidden border ${isCyber ? "border-slate-800" : "border-[#c8b78a]"}`}
+          className={`w-full h-full relative rounded-xl sm:rounded-2xl overflow-hidden border ${isCyber ? "border-slate-800" : "border-[#c8b78a]"}`}
         >
           {/* 1. 6x6 BASE BACKGROUND PANELS */}
           {(["red", "green", "blue", "yellow"] as LudoColor[]).map((color) => {
@@ -354,7 +500,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
                         : `${ct.neonColor}40`
                       : ct.classicBorder,
                 }}
-                className="rounded-2xl border-2 transition-colors duration-300"
+                className="rounded-xl sm:rounded-2xl border-2 transition-colors duration-300"
                 animate={
                   active
                     ? {
@@ -423,138 +569,13 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
                 strokeWidth="1.5"
               />
             </svg>
-            <div className="relative z-10 w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-slate-950/95 border-2 border-amber-400 flex items-center justify-center shadow-[0_0_12px_rgba(245,158,11,0.5)]">
-              <Trophy className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-amber-400" />
+            <div className="relative z-10 w-5 h-5 sm:w-8 sm:h-8 rounded-full bg-slate-950/95 border-2 border-amber-400 flex items-center justify-center shadow-[0_0_12px_rgba(245,158,11,0.5)]">
+              <Trophy className="w-3 h-3 sm:w-4.5 sm:h-4.5 text-amber-400" />
             </div>
           </div>
 
-          {/* 3. TRACK & HOME CELLS (Outer Pathway Grid) */}
-          {Array.from({ length: 15 }).map((_, r) =>
-            Array.from({ length: 15 }).map((_, c) => {
-              const isRedBase = r < 6 && c < 6;
-              const isGreenBase = r < 6 && c >= 9;
-              const isBlueBase = r >= 9 && c < 6;
-              const isYellowBase = r >= 9 && c >= 9;
-              const isCenterHome = r >= 6 && r <= 8 && c >= 6 && c <= 8;
-
-              if (
-                isRedBase ||
-                isGreenBase ||
-                isBlueBase ||
-                isYellowBase ||
-                isCenterHome
-              )
-                return null;
-
-              const cellKey = `${r}_${c}`;
-              const trackInfo = trackMap.get(cellKey);
-              const homePathInfo = homePathMap.get(cellKey);
-
-              let cellStyle: React.CSSProperties = {
-                background: isCyber ? "#0a1120" : "#fbf5e6",
-                borderColor: isCyber
-                  ? "rgba(80,110,160,0.14)"
-                  : "rgba(60,45,25,0.28)",
-                boxShadow: isCyber
-                  ? "inset 0 0 6px rgba(0,0,0,0.5)"
-                  : "inset 0 0 3px rgba(0,0,0,0.12)",
-              };
-              let content = null;
-
-              if (homePathInfo) {
-                const themeCol = LUDO_COLOR_THEMES[homePathInfo.color];
-                cellStyle = {
-                  background: isCyber
-                    ? `linear-gradient(180deg, ${themeCol.neonColor}44, ${themeCol.neonColor}22)`
-                    : `linear-gradient(180deg, ${themeCol.classicColor}, ${themeCol.classicDark})`,
-                  borderColor: isCyber
-                    ? `${themeCol.neonColor}66`
-                    : themeCol.classicBorder,
-                  boxShadow: isCyber
-                    ? `inset 0 0 8px ${themeCol.neonColor}55`
-                    : "inset 0 1px 2px rgba(255,255,255,0.35)",
-                  opacity: isActive(homePathInfo.color) ? 1 : 0.22,
-                };
-              } else if (trackInfo) {
-                if (trackInfo.isStart && trackInfo.startColor) {
-                  const themeCol = LUDO_COLOR_THEMES[trackInfo.startColor];
-                  cellStyle = {
-                    background: isCyber
-                      ? `radial-gradient(circle, ${themeCol.neonColor}55, ${themeCol.neonColor}22)`
-                      : `linear-gradient(180deg, ${themeCol.classicColor}, ${themeCol.classicDark})`,
-                    borderColor: isCyber
-                      ? themeCol.neonColor
-                      : themeCol.classicBorder,
-                    boxShadow: isCyber
-                      ? `inset 0 0 10px ${themeCol.neonColor}`
-                      : "inset 0 1px 2px rgba(255,255,255,0.4)",
-                    opacity: isActive(trackInfo.startColor) ? 1 : 0.3,
-                  };
-                  content = (
-                    <Star
-                      className="w-3 h-3 sm:w-3.5 sm:h-3.5 drop-shadow"
-                      style={{
-                        color: isCyber ? "#fff" : "#fff",
-                        fill: isCyber ? themeCol.neonColor : "#ffffffcc",
-                      }}
-                    />
-                  );
-                } else if (trackInfo.isSafe) {
-                  cellStyle = {
-                    background: isCyber
-                      ? "radial-gradient(circle, #1c2740, #0a1120)"
-                      : "#f3e8c9",
-                    borderColor: isCyber
-                      ? "rgba(251,191,36,0.5)"
-                      : "rgba(180,130,40,0.5)",
-                    boxShadow: isCyber
-                      ? "inset 0 0 8px rgba(251,191,36,0.35)"
-                      : "inset 0 0 4px rgba(0,0,0,0.15)",
-                  };
-                  content = (
-                    <Star className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 fill-amber-400 drop-shadow" />
-                  );
-                } else if (r === 7 && c === 0)
-                  content = (
-                    <ArrowRight
-                      className="w-3 h-3"
-                      style={{ color: LUDO_COLOR_THEMES.red.neonBorder }}
-                    />
-                  );
-                else if (r === 0 && c === 7)
-                  content = (
-                    <ArrowDown
-                      className="w-3 h-3"
-                      style={{ color: LUDO_COLOR_THEMES.green.neonBorder }}
-                    />
-                  );
-                else if (r === 7 && c === 14)
-                  content = (
-                    <ArrowLeft
-                      className="w-3 h-3"
-                      style={{ color: LUDO_COLOR_THEMES.yellow.neonBorder }}
-                    />
-                  );
-                else if (r === 14 && c === 7)
-                  content = (
-                    <ArrowUp
-                      className="w-3 h-3"
-                      style={{ color: LUDO_COLOR_THEMES.blue.neonBorder }}
-                    />
-                  );
-              }
-
-              return (
-                <div
-                  key={cellKey}
-                  style={{ gridRow: r + 1, gridColumn: c + 1, ...cellStyle }}
-                  className="w-full h-full flex items-center justify-center border rounded-[3px] relative"
-                >
-                  {content}
-                </div>
-              );
-            }),
-          )}
+          {/* 3. STATIC TRACK & HOME CELLS (Memoized: Zero Re-renders during token hops!) */}
+          <StaticBoardTrackCells isCyber={isCyber} activeColors={activeColors} />
 
           {/* 4. BASE NEST SOCKETS (Rendered strictly inside grid cells: r+1, c+1) */}
           {(["red", "green", "yellow", "blue"] as LudoColor[]).map((color) => {
@@ -568,7 +589,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
               >
                 {/* Outer Concentric Socket */}
                 <div
-                  className="w-full h-full max-w-[28px] max-h-[28px] sm:max-w-[34px] sm:max-h-[34px] rounded-full border-2 flex items-center justify-center transition-all"
+                  className="w-full h-full max-w-[26px] max-h-[26px] sm:max-w-[34px] sm:max-h-[34px] rounded-full border-2 flex items-center justify-center transition-all"
                   style={{
                     borderColor: isCyber
                       ? `${colTheme.neonColor}90`
@@ -581,7 +602,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
                 >
                   {/* Inner Concentric Target Ring */}
                   <div
-                    className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 rounded-full border flex items-center justify-center"
+                    className="w-3 h-3 sm:w-4.5 sm:h-4.5 rounded-full border flex items-center justify-center"
                     style={{
                       borderColor: isCyber
                         ? `${colTheme.neonColor}70`
@@ -602,7 +623,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
             ));
           })}
 
-          {/* 5. 2x2 IN-BASE TERMINALS (Strict 2x2 Grid Area: Zero Overlap with Nest Sockets) */}
+          {/* 5. 2x2 IN-BASE TERMINALS WITH PROMINENT 3D WHITE DICE */}
           {(["red", "green", "yellow", "blue"] as LudoColor[]).map((color) => {
             const colTheme = LUDO_COLOR_THEMES[color];
             const player = players.find((p) => p.color === color);
@@ -620,7 +641,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
               >
                 {isTurn ? (
                   <motion.div
-                    className="w-full h-full rounded-xl border-2 p-1 flex items-center justify-center relative shadow-2xl"
+                    className="w-full h-full rounded-xl border-2 p-0.5 sm:p-1 flex items-center justify-center relative shadow-2xl"
                     style={{
                       background: isCyber
                         ? `radial-gradient(circle at 50% 40%, ${colTheme.neonColor}22, #05070ef2 70%)`
@@ -631,7 +652,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
                       boxShadow: isCyber
                         ? [
                             `0 0 12px ${colTheme.neonColor}55`,
-                            `0 0 26px ${colTheme.neonColor}aa`,
+                            `0 0 24px ${colTheme.neonColor}aa`,
                             `0 0 12px ${colTheme.neonColor}55`,
                           ]
                         : [
@@ -653,13 +674,13 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
                       canRoll={canRollNow}
                       isRolling={isRollingNow}
                       diceValue={diceValue}
-                      hint={canRollNow ? "Roll the dice" : "Waiting"}
+                      hint={canRollNow ? "Tap to Roll Dice" : "Dice"}
                       onRoll={handleYardDiceClick}
                     />
 
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-0.5 pointer-events-none">
+                    <div className="absolute left-1/2 -translate-x-1/2 -bottom-1 pointer-events-none">
                       <span
-                        className="text-[6.5px] sm:text-[7.5px] font-orbitron font-extrabold px-1 py-0.2 rounded border shadow whitespace-nowrap uppercase tracking-wider"
+                        className="text-[6.5px] sm:text-[8px] font-orbitron font-black px-1.5 py-0.2 rounded border shadow whitespace-nowrap uppercase tracking-wider"
                         style={{
                           backgroundColor: isCyber
                             ? colTheme.neonDarkBg
@@ -680,7 +701,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
                   </motion.div>
                 ) : (
                   <div
-                    className="w-full h-full rounded-xl bg-slate-950/85 border border-slate-800 p-1 flex flex-col items-center justify-center pointer-events-none transition-all"
+                    className="w-full h-full rounded-xl bg-slate-950/85 border border-slate-800 p-0.5 sm:p-1 flex flex-col items-center justify-center pointer-events-none transition-all"
                     style={{
                       borderColor: isCyber
                         ? `${colTheme.neonBorder}50`
@@ -688,7 +709,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
                     }}
                   >
                     <span
-                      className="text-[9px] sm:text-[11px] font-orbitron font-black tracking-widest uppercase"
+                      className="text-[8px] sm:text-[11px] font-orbitron font-black tracking-widest uppercase"
                       style={{
                         color: isCyber ? colTheme.neonColor : "#F8FAFC",
                         textShadow: isCyber
@@ -700,7 +721,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
                     </span>
 
                     {player && (
-                      <div className="flex items-center gap-0.5 mt-0.5 text-[7px] sm:text-[8px] text-slate-400 font-mono">
+                      <div className="flex items-center gap-0.5 mt-0.5 text-[6.5px] sm:text-[8px] text-slate-400 font-mono">
                         {player.type === "ai" ? (
                           <Bot className="w-2 h-2 text-slate-400" />
                         ) : (
@@ -748,7 +769,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
                     top: `${topPct}%`,
                     x: `calc(-50% + ${offsetX}px)`,
                     y: `calc(-50% + ${offsetY}px)`,
-                    scale: isSelectable ? 1.15 : 1,
+                    scale: isSelectable ? 1.18 : 1,
                     zIndex: isSelectable ? 40 : 25 + stackIndex,
                   }}
                   transition={{
@@ -758,7 +779,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = ({
                     mass: 0.5,
                   }}
                   style={{ position: "absolute" }}
-                  className="pointer-events-auto flex items-center justify-center"
+                  className="pointer-events-auto flex items-center justify-center transform-gpu"
                 >
                   <LudoTokenVisual
                     token={item.token}

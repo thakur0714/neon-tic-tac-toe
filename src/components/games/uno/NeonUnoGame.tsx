@@ -86,6 +86,9 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
   const [privacyVeilEnabled, setPrivacyVeilEnabled] = useState<boolean>(true);
   const [showPrivacyVeil, setShowPrivacyVeil] = useState<boolean>(false);
   const [isShufflingDealing, setIsShufflingDealing] = useState<boolean>(false);
+  const [initialCardCount, setInitialCardCount] = useState<number>(7);
+  const [clientAnimationPlayers, setClientAnimationPlayers] = useState<UnoPlayer[]>([]);
+  const hasClientDealtRef = useRef<boolean>(false);
 
   // Online Multiplayer State
   const [onlineRole, setOnlineRole] = useState<'host' | 'client' | null>(null);
@@ -183,7 +186,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
     playType === 'online'
       ? onlineRole === 'host'
         ? currentTurnIndex === 0 && gameStatus === 'playing' && !isShufflingDealing
-        : !!onlineSnapshot?.isMyTurn && onlineSnapshot.gameStatus === 'playing'
+        : !!onlineSnapshot?.isMyTurn && onlineSnapshot.gameStatus === 'playing' && !isShufflingDealing
       : playType === 'pass-and-play'
       ? gameStatus === 'playing' && !isShufflingDealing && !showPrivacyVeil
       : activePlayer?.type === 'human' && gameStatus === 'playing' && !isShufflingDealing;
@@ -201,7 +204,8 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       status: 'playing' | 'color-picking' | 'game-over',
       win: UnoPlayer | null,
       msg: string,
-      curDrawPile: UnoCard[]
+      curDrawPile: UnoCard[],
+      customInitialCardCount?: number
     ) => {
       if (playType !== 'online' || onlineRole !== 'host') return;
 
@@ -228,11 +232,12 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
           winnerName: win ? win.name : null,
           lastActionMessage: msg,
           isMyTurn: curTurn === i,
+          initialCardCount: customInitialCardCount || initialCardCount || 7,
         };
         unoRoomManager.hostSendToSeat(i, { type: 'STATE', snapshot: clientSnapshot });
       }
     },
-    [playType, onlineRole]
+    [playType, onlineRole, initialCardCount]
   );
 
   /**
@@ -476,6 +481,8 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
     setDifficulty(config.difficulty);
     setPrivacyVeilEnabled(config.privacyVeil);
     setOnlineRole(null);
+    const cardCount = config.initialCardCount || 7;
+    setInitialCardCount(cardCount);
 
     const playerCount = config.playerCount;
     const fullDeck = shuffleCards(generateUnoDeck());
@@ -489,7 +496,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
 
     const newPlayers: UnoPlayer[] = [];
     for (let p = 0; p < playerCount; p++) {
-      const hand = fullDeck.splice(0, 7);
+      const hand = fullDeck.splice(0, cardCount);
       const isAI = config.playType === 'vs-ai' && p > 0;
       newPlayers.push({
         id: `player-${p}`,
@@ -539,6 +546,10 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
     setOnlineRole(info.role);
     setMyOnlineSeatIndex(info.mySeatIndex);
     setCardEightWild(info.cardEightWild);
+    const cardCount = info.initialCardCount || 7;
+    setInitialCardCount(cardCount);
+    hasClientDealtRef.current = false;
+    setClientAnimationPlayers([]);
     setIsInSetup(false);
 
     if (info.role === 'host') {
@@ -553,7 +564,7 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
 
       const newPlayers: UnoPlayer[] = [];
       for (let p = 0; p < playerCount; p++) {
-        const hand = fullDeck.splice(0, 7);
+        const hand = fullDeck.splice(0, cardCount);
         const seatInfo = info.players.find((s) => s.index === p);
         newPlayers.push({
           id: `online-seat-${p}`,
@@ -596,7 +607,8 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
           'playing',
           null,
           'Match started!',
-          fullDeck
+          fullDeck,
+          cardCount
         );
       }, 200);
     }
@@ -612,6 +624,45 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
       // Client receives STATE snapshot
       if (msg.type === 'STATE' && onlineRole === 'client') {
         setOnlineSnapshot(msg.snapshot);
+
+        // First snapshot received: trigger shuffle & dealing animation for client!
+        if (!hasClientDealtRef.current && msg.snapshot.topCard) {
+          hasClientDealtRef.current = true;
+          const totalSeats = msg.snapshot.players.length;
+          const mySeat = myOnlineSeatIndex;
+          const cardsPerP = msg.snapshot.initialCardCount || initialCardCount || 7;
+          setInitialCardCount(cardsPerP);
+
+          // Configure table positions relative to this client's seat so client is always at 'bottom'
+          const animPlayers: UnoPlayer[] = msg.snapshot.players.map((p, idx) => {
+            let pos: UnoTablePosition = 'bottom';
+            if (idx === mySeat) {
+              pos = 'bottom';
+            } else if (totalSeats === 2) {
+              pos = 'top';
+            } else if (totalSeats === 3) {
+              const rel = (idx - mySeat + 3) % 3;
+              pos = rel === 1 ? 'left' : 'top';
+            } else {
+              const rel = (idx - mySeat + 4) % 4;
+              pos = rel === 1 ? 'left' : rel === 2 ? 'top' : 'right';
+            }
+            return {
+              id: p.id,
+              name: p.name,
+              type: 'human',
+              hand: [],
+              avatarColor: p.avatarColor,
+              position: pos,
+              score: 0,
+              hasCalledUno: p.hasCalledUno,
+            };
+          });
+
+          setClientAnimationPlayers(animPlayers);
+          setIsShufflingDealing(true);
+        }
+
         if (msg.snapshot.gameStatus === 'game-over' && msg.snapshot.winnerName) {
           playWinSound(soundEnabled);
           confetti({ particleCount: 100, spread: 70 });
@@ -1051,17 +1102,26 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
     <div className="w-full h-full flex flex-col justify-between p-2 sm:p-3 bg-slate-950 text-white select-none overflow-hidden relative font-sans">
       {/* Cinematic Deck Shuffle & Dealing Animation Overlay */}
       <AnimatePresence>
-        {isShufflingDealing && topCard && (
-          <UnoShuffleDealAnimation
-            players={players}
-            initialTopCard={topCard}
-            soundEnabled={soundEnabled}
-            onComplete={() => {
-              setIsShufflingDealing(false);
-              playUnoCardPlaySound(soundEnabled);
-            }}
-          />
-        )}
+        {isShufflingDealing &&
+          topCard &&
+          (playType === 'online' && onlineRole === 'client'
+            ? clientAnimationPlayers.length > 0
+            : players.length > 0) && (
+            <UnoShuffleDealAnimation
+              players={
+                playType === 'online' && onlineRole === 'client'
+                  ? clientAnimationPlayers
+                  : players
+              }
+              initialTopCard={topCard}
+              soundEnabled={soundEnabled}
+              cardsPerPlayer={initialCardCount}
+              onComplete={() => {
+                setIsShufflingDealing(false);
+                playUnoCardPlaySound(soundEnabled);
+              }}
+            />
+          )}
       </AnimatePresence>
 
       {/* Pass & Play Privacy Veil Overlay */}
@@ -1110,6 +1170,9 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
           onClick={() => {
             playClickSound(soundEnabled);
             unoRoomManager.cleanup();
+            hasClientDealtRef.current = false;
+            setClientAnimationPlayers([]);
+            setIsShufflingDealing(false);
             setIsInSetup(true);
           }}
           className="flex items-center gap-1 text-slate-400 hover:text-white px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-orbitron cursor-pointer"
@@ -1477,6 +1540,9 @@ export const NeonUnoGame: React.FC<NeonUnoGameProps> = ({
                   if (playType === 'online') {
                     unoRoomManager.cleanup();
                   }
+                  hasClientDealtRef.current = false;
+                  setClientAnimationPlayers([]);
+                  setIsShufflingDealing(false);
                   setIsInSetup(true);
                 }}
                 className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-purple-500 text-slate-950 font-orbitron font-black text-xs tracking-wider shadow-[0_0_12px_rgba(6,182,212,0.4)] hover:brightness-110 active:scale-98 transition-all cursor-pointer"

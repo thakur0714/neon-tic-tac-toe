@@ -32,10 +32,10 @@ export const LudoPlayerCorner: React.FC<LudoPlayerCornerProps> = ({
   const colorTheme = LUDO_COLOR_THEMES[player.color];
   const isRightSide = position === 'top-right' || position === 'bottom-right';
 
-  // Render dice pips (1 to 6 dots)
+  // Render dice pips (1 to 6 dots on white acrylic dice)
   const renderPips = (val: number) => {
-    const dotColor = isCyber ? colorTheme.neonColor : '#1E293B';
-    const dotGlow = isCyber ? `0 0 5px ${colorTheme.neonColor}` : 'none';
+    const dotColor = val === 1 ? colorTheme.neonColor : '#0F172A';
+    const dotGlow = val === 1 ? `0 0 5px ${colorTheme.neonColor}` : 'none';
 
     switch (val) {
       case 1:
@@ -118,8 +118,8 @@ export const LudoPlayerCorner: React.FC<LudoPlayerCornerProps> = ({
     }
   };
 
-  // Display value on this player's dice
-  const displayValue = isCurrentTurn ? (diceValue || 6) : 6;
+  // Display value on this player's dice (never hardcoded 6!)
+  const displayValue = isCurrentTurn ? (diceValue && diceValue >= 1 && diceValue <= 6 ? diceValue : 1) : 1;
 
   return (
     <div
@@ -153,13 +153,11 @@ export const LudoPlayerCorner: React.FC<LudoPlayerCornerProps> = ({
               : 'cursor-default opacity-85'
           }`}
           style={{
-            backgroundColor: isCyber ? '#0A0E1A' : '#FFFFFF',
-            border: `2px solid ${isCurrentTurn ? colorTheme.neonBorder : '#334155'}`,
+            background: 'linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 55%, #E2E8F0 100%)',
+            border: `2px solid ${isCurrentTurn ? colorTheme.neonBorder : '#CBD5E1'}`,
             boxShadow: isCurrentTurn
-              ? isCyber
-                ? `0 0 14px ${colorTheme.neonColor}, inset 0 2px 4px rgba(255,255,255,0.2)`
-                : '0 4px 10px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.8)'
-              : 'none',
+              ? `0 0 14px ${colorTheme.neonColor}80, 0 4px 10px rgba(0,0,0,0.35), inset 0 2px 4px #FFFFFF, inset 0 -3px 5px rgba(0,0,0,0.12)`
+              : '0 4px 8px rgba(0,0,0,0.25), inset 0 2px 3px #FFFFFF, inset 0 -2px 4px rgba(0,0,0,0.1)',
           }}
         >
           {/* Pulsing ring when active turn & ready to roll */}

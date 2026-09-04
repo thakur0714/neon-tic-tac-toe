@@ -94,6 +94,7 @@ export interface UnoLobbyState {
   locked: boolean;
   roomCode: string;
   cardEightWild: boolean;
+  initialCardCount?: number;
 }
 
 export interface UnoOnlinePlayerSummary {
@@ -118,13 +119,14 @@ export interface UnoOnlineSnapshot {
   lastActionMessage: string;
   pendingCardForColor?: UnoCard | null;
   isMyTurn: boolean;
+  initialCardCount?: number;
 }
 
 export type UnoRoomMessage =
   | { type: 'HELLO'; name: string; rejoinToken?: string }
   | { type: 'LOBBY'; lobby: UnoLobbyState }
   | { type: 'ASSIGN'; seatIndex: number; rejoinToken: string }
-  | { type: 'START' }
+  | { type: 'START'; initialCardCount?: number }
   | { type: 'STATE'; snapshot: UnoOnlineSnapshot }
   | {
       type: 'INTENT';

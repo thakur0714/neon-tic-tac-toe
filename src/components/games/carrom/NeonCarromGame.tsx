@@ -14,6 +14,7 @@ import {
   SlidersHorizontal,
   Maximize2,
   Minimize2,
+  ArrowUpDown,
 } from 'lucide-react';
 import { usePWAInstall } from '../../../utils/usePWAInstall';
 import {
@@ -70,19 +71,7 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
   const [showRulesModal, setShowRulesModal] = useState(false);
   const { isFullscreen, toggleFullscreen } = usePWAInstall();
 
-  // Board & Pieces State
-  const [pieces, setPieces] = useState<CarromPiece[]>(() => createInitialPieces());
-  const [currentTurn, setCurrentTurn] = useState<'player1' | 'player2'>('player1');
-  const [strikerSliderX, setStrikerSliderX] = useState(0.5);
-  const [striker, setStriker] = useState<CarromPiece>(() => createStriker('player1', 0.5));
-
-  // Aiming & Motion State
-  const [aimAngle, setAimAngle] = useState(currentTurn === 'player1' ? -Math.PI / 2 : Math.PI / 2);
-  const [aimPower, setAimPower] = useState(0.65);
-  const [isAiming, setIsAiming] = useState(true);
-  const [isMoving, setIsMoving] = useState(false);
-
-  // Score & Status
+  // Score & Players
   const [player1, setPlayer1] = useState<CarromPlayer>({
     id: 'p1',
     name: 'Player 1',
@@ -99,6 +88,37 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
     isAI: true,
   });
 
+  // Perspective / Board Flip State (for player-centric bottom baseline)
+  const [flipViewOverride, setFlipViewOverride] = useState<boolean | null>(null);
+
+  // Online seat determination
+  const myOnlineSeat = playType === 'online' ? carromRoomManager.getMySeat() || 'player1' : null;
+
+  // Auto flipped view:
+  // - In Online Duel: Player 2 (Joiner) MUST see their baseline at bottom!
+  // - In Vs AI: If user chose Black puck (Player 2), flip board so user is at bottom!
+  const isAutoFlipped =
+    playType === 'online'
+      ? myOnlineSeat === 'player2'
+      : playType === 'vs-ai'
+      ? player2.name === 'You'
+      : false;
+
+  const isFlippedView = flipViewOverride !== null ? flipViewOverride : isAutoFlipped;
+
+  // Board & Pieces State
+  const [pieces, setPieces] = useState<CarromPiece[]>(() => createInitialPieces());
+  const [currentTurn, setCurrentTurn] = useState<'player1' | 'player2'>('player1');
+  const [strikerSliderX, setStrikerSliderX] = useState(0.5);
+  const [striker, setStriker] = useState<CarromPiece>(() => createStriker('player1', 0.5));
+
+  // Aiming & Motion State
+  const [aimAngle, setAimAngle] = useState(currentTurn === 'player1' ? -Math.PI / 2 : Math.PI / 2);
+  const [aimPower, setAimPower] = useState(0.65);
+  const [isAiming, setIsAiming] = useState(true);
+  const [isMoving, setIsMoving] = useState(false);
+
+  // Score & Status
   const [statusMessage, setStatusMessage] = useState<string>('Your Turn - Position striker & aim!');
   const [winner, setWinner] = useState<'player1' | 'player2' | null>(null);
   const [turnTimer, setTurnTimer] = useState(25);
@@ -202,26 +222,18 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
     setPlayer1((p) => ({ ...p, score: 0 }));
     setPlayer2((p) => ({ ...p, score: 0 }));
     setTurnTimer(25);
-  }, []);
 
-  // ── Online Room Listener Setup ───────────────────────────────────
-  useEffect(() => {
-    const unsubMsg = carromRoomManager.onMessage((msg) => {
-      if (msg.type === 'STRIKE_ACTION') {
-        // Opponent took a shot
-        handleExecuteShot(msg.intent, false);
-      } else if (msg.type === 'SYNC_STATE') {
-        setWinner(msg.snapshot.winner);
-        setStatusMessage(msg.snapshot.statusText);
-      } else if (msg.type === 'REMATCH_REQ') {
-        setStatusMessage('Opponent requested rematch!');
-      }
-    });
-
-    return () => {
-      unsubMsg();
-    };
-  }, []);
+    if (playType === 'online') {
+      const mySeat = carromRoomManager.getMySeat() || 'player1';
+      setStatusMessage(
+        mySeat === 'player1'
+          ? 'Match ready! Your turn to break - slide striker & shoot!'
+          : 'Match ready! Waiting for Opponent to break…'
+      );
+    } else {
+      setStatusMessage('Your turn! Pull back on striker to aim forward & release.');
+    }
+  }, [playType]);
 
   // ── Execute Physics Strike ───────────────────────────────────────
   const handleExecuteShot = useCallback(
@@ -377,7 +389,50 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
     setStriker(createStriker(nextTurn, 0.5));
     setAimAngle(nextTurn === 'player1' ? -Math.PI / 2 : Math.PI / 2);
     setTurnTimer(25);
+
+    if (playType === 'online') {
+      const mySeat = carromRoomManager.getMySeat() || 'player1';
+      if (nextTurn === mySeat) {
+        setStatusMessage('Your turn! Slide striker, pull back & release to strike.');
+      } else {
+        const nextPlayerName = nextTurn === 'player1' ? player1.name : player2.name;
+        setStatusMessage(`Waiting for ${nextPlayerName} to strike…`);
+      }
+    } else {
+      setStatusMessage(`${nextTurn === 'player1' ? player1.name : player2.name}'s turn to strike.`);
+    }
   };
+
+  // ── Online Room Listener Setup ───────────────────────────────────
+  useEffect(() => {
+    const unsubMsg = carromRoomManager.onMessage((msg) => {
+      if (msg.type === 'STRIKE_ACTION') {
+        // Opponent took a shot
+        handleExecuteShot(msg.intent, false);
+      } else if (msg.type === 'SYNC_STATE') {
+        setWinner(msg.snapshot.winner);
+        setStatusMessage(msg.snapshot.statusText);
+      } else if (msg.type === 'REMATCH_REQ') {
+        setStatusMessage('Opponent requested rematch!');
+      }
+    });
+
+    const unsubLobby = carromRoomManager.onLobby((lobby) => {
+      const p1 = lobby.seats.find((s) => s.seat === 'player1');
+      const p2 = lobby.seats.find((s) => s.seat === 'player2');
+      if (p1 && p1.name) {
+        setPlayer1((prev) => ({ ...prev, name: p1.name, isHost: true }));
+      }
+      if (p2 && p2.connected && p2.name) {
+        setPlayer2((prev) => ({ ...prev, name: p2.name, isAI: false }));
+      }
+    });
+
+    return () => {
+      unsubMsg();
+      unsubLobby();
+    };
+  }, [handleExecuteShot]);
 
   // ── AI Bot Trigger ───────────────────────────────────────────────
   useEffect(() => {
@@ -423,8 +478,29 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
     playType === 'pass-and-play'
       ? true
       : playType === 'online'
-      ? (carromRoomManager.getMySeat() || 'player1') === currentTurn
+      ? (myOnlineSeat || 'player1') === currentTurn
       : !activePlayer.isAI;
+
+  // On-screen player perspective:
+  // - bottomPlayer is stationed at the BOTTOM baseline of this device screen (Local Player / "You")
+  // - topPlayer is stationed at the TOP baseline of this device screen (Opponent)
+  const bottomPlayer = isFlippedView ? player2 : player1;
+  const topPlayer = isFlippedView ? player1 : player2;
+  const isBottomTurn = isFlippedView ? currentTurn === 'player2' : currentTurn === 'player1';
+  const isTopTurn = isFlippedView ? currentTurn === 'player1' : currentTurn === 'player2';
+
+  const isBottomYou =
+    playType === 'online'
+      ? (isFlippedView ? myOnlineSeat === 'player2' : myOnlineSeat === 'player1')
+      : playType === 'vs-ai'
+      ? !bottomPlayer.isAI
+      : false;
+  const isTopYou =
+    playType === 'online'
+      ? (isFlippedView ? myOnlineSeat === 'player1' : myOnlineSeat === 'player2')
+      : playType === 'vs-ai'
+      ? !topPlayer.isAI
+      : false;
 
   if (gameStage === 'setup') {
     return (
@@ -480,6 +556,16 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
           onClose={() => setIsOnlineModalOpen(false)}
           onGameStarted={() => {
             setPlayType('online');
+            setFlipViewOverride(null);
+            const lobby = carromRoomManager.getLobby();
+            const p1 = lobby.seats.find((s) => s.seat === 'player1');
+            const p2 = lobby.seats.find((s) => s.seat === 'player2');
+            if (p1 && p1.name) {
+              setPlayer1((prev) => ({ ...prev, name: p1.name, isHost: true }));
+            }
+            if (p2 && p2.connected && p2.name) {
+              setPlayer2((prev) => ({ ...prev, name: p2.name, isAI: false }));
+            }
             handleResetGame();
             setGameStage('playing');
           }}
@@ -533,6 +619,21 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
         <div className="flex items-center gap-1">
           <button
             type="button"
+            onClick={() => {
+              playClickSound(soundEnabled);
+              setFlipViewOverride((prev) => (prev !== null ? !prev : !isAutoFlipped));
+            }}
+            className={`p-1.5 rounded-xl border transition-colors flex items-center gap-1 cursor-pointer ${
+              isFlippedView
+                ? 'bg-cyan-950/70 border-cyan-500/50 text-cyan-300'
+                : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-cyan-300'
+            }`}
+            title={`Rotate Board View (${isFlippedView ? 'P2 Baseline at Bottom' : 'P1 Baseline at Bottom'})`}
+          >
+            <ArrowUpDown className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
             onClick={toggleFullscreen}
             className="p-1.5 rounded-xl text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer"
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen (Hide URL Bar)'}
@@ -566,25 +667,42 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
         </div>
       </div>
 
-      {/* 2. Scoreboard & Turn HUD */}
+      {/* 2. Scoreboard & Turn HUD (Player-Centric: Left = Bottom Baseline, Right = Top Baseline) */}
       <div className="px-3 py-2 grid grid-cols-12 gap-2 items-center bg-slate-900/40">
-        {/* Player 1 Card (Bottom Baseline / White) */}
+        {/* Bottom Baseline Player (Screen Bottom / Local Player "You") */}
         <div
           className={`col-span-5 flex items-center gap-2 p-2 rounded-2xl border transition-all ${
-            currentTurn === 'player1'
+            isBottomTurn
               ? 'bg-cyan-950/40 border-cyan-400/60 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
               : 'bg-slate-900/50 border-slate-800 opacity-70'
           }`}
         >
-          <div className="w-7 h-7 rounded-full bg-slate-100 border-2 border-amber-300 flex items-center justify-center shrink-0 shadow-sm">
-            <span className="text-[10px] font-black text-slate-900">W</span>
+          <div
+            className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-sm border-2 ${
+              bottomPlayer.assignedType === 'white'
+                ? 'bg-slate-100 border-amber-300'
+                : 'bg-slate-900 border-slate-600'
+            }`}
+          >
+            <span
+              className={`text-[10px] font-black ${
+                bottomPlayer.assignedType === 'white' ? 'text-slate-900' : 'text-slate-200'
+              }`}
+            >
+              {bottomPlayer.assignedType === 'white' ? 'W' : 'B'}
+            </span>
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-200 truncate">{player1.name}</span>
-              <span className="text-sm font-black text-cyan-400">{player1.score}</span>
+              <span className="text-xs font-bold text-slate-200 truncate flex items-center gap-1">
+                {bottomPlayer.name}
+                {isBottomYou && <span className="text-[10px] text-cyan-400 font-semibold">(You)</span>}
+              </span>
+              <span className="text-sm font-black text-cyan-400">{bottomPlayer.score}</span>
             </div>
-            <span className="text-[9px] text-slate-400 block">White Coins</span>
+            <span className="text-[9px] text-slate-400 block">
+              {bottomPlayer.assignedType === 'white' ? 'White' : 'Black'} · Bottom Base
+            </span>
           </div>
         </div>
 
@@ -604,23 +722,40 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
           </div>
         </div>
 
-        {/* Player 2 / AI Card (Top Baseline / Black) */}
+        {/* Top Baseline Player (Screen Top / Opponent) */}
         <div
           className={`col-span-5 flex items-center gap-2 p-2 rounded-2xl border transition-all ${
-            currentTurn === 'player2'
+            isTopTurn
               ? 'bg-rose-950/40 border-rose-400/60 shadow-[0_0_12px_rgba(244,63,94,0.3)]'
               : 'bg-slate-900/50 border-slate-800 opacity-70'
           }`}
         >
           <div className="min-w-0 flex-1 text-right">
             <div className="flex items-center justify-between flex-row-reverse">
-              <span className="text-xs font-bold text-slate-200 truncate">{player2.name}</span>
-              <span className="text-sm font-black text-rose-400">{player2.score}</span>
+              <span className="text-xs font-bold text-slate-200 truncate flex items-center justify-end gap-1">
+                {isTopYou && <span className="text-[10px] text-cyan-400 font-semibold">(You)</span>}
+                {topPlayer.name}
+              </span>
+              <span className="text-sm font-black text-rose-400">{topPlayer.score}</span>
             </div>
-            <span className="text-[9px] text-slate-400 block">Black Coins</span>
+            <span className="text-[9px] text-slate-400 block">
+              {topPlayer.assignedType === 'white' ? 'White' : 'Black'} · Top Base
+            </span>
           </div>
-          <div className="w-7 h-7 rounded-full bg-slate-900 border-2 border-slate-600 flex items-center justify-center shrink-0 shadow-sm">
-            <span className="text-[10px] font-black text-slate-200">B</span>
+          <div
+            className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-sm border-2 ${
+              topPlayer.assignedType === 'white'
+                ? 'bg-slate-100 border-amber-300'
+                : 'bg-slate-900 border-slate-600'
+            }`}
+          >
+            <span
+              className={`text-[10px] font-black ${
+                topPlayer.assignedType === 'white' ? 'text-slate-900' : 'text-slate-200'
+              }`}
+            >
+              {topPlayer.assignedType === 'white' ? 'W' : 'B'}
+            </span>
           </div>
         </div>
       </div>
@@ -651,6 +786,7 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
           strikerSliderX={strikerSliderX}
           onSliderChange={setStrikerSliderX}
           soundEnabled={soundEnabled}
+          isFlippedView={isFlippedView}
         />
       </div>
 
@@ -667,6 +803,7 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
           disabled={isMoving || !!winner}
           isMyTurn={isMyTurn}
           canPlaceHere={canPlaceHere}
+          isFlippedView={isFlippedView}
         />
       </div>
 
@@ -676,6 +813,16 @@ export const NeonCarromGame: React.FC<NeonCarromGameProps> = ({
         onClose={() => setIsOnlineModalOpen(false)}
         onGameStarted={() => {
           setPlayType('online');
+          setFlipViewOverride(null);
+          const lobby = carromRoomManager.getLobby();
+          const p1 = lobby.seats.find((s) => s.seat === 'player1');
+          const p2 = lobby.seats.find((s) => s.seat === 'player2');
+          if (p1 && p1.name) {
+            setPlayer1((prev) => ({ ...prev, name: p1.name, isHost: true }));
+          }
+          if (p2 && p2.connected && p2.name) {
+            setPlayer2((prev) => ({ ...prev, name: p2.name, isAI: false }));
+          }
           handleResetGame();
         }}
         gameMode={gameMode}

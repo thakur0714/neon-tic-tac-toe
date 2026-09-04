@@ -14,6 +14,7 @@ interface UnoShuffleDealAnimationProps {
   players: UnoPlayer[];
   initialTopCard: UnoCard;
   soundEnabled: boolean;
+  cardsPerPlayer?: number;
   onComplete: () => void;
 }
 
@@ -29,6 +30,7 @@ export const UnoShuffleDealAnimation: React.FC<UnoShuffleDealAnimationProps> = (
   players,
   initialTopCard,
   soundEnabled,
+  cardsPerPlayer = 7,
   onComplete,
 }) => {
   const [phase, setPhase] = useState<'shuffling' | 'dealing' | 'lead-card'>('shuffling');
@@ -78,10 +80,11 @@ export const UnoShuffleDealAnimation: React.FC<UnoShuffleDealAnimationProps> = (
 
   // 2. Dealing Phase: Deliberate round-robin deal with smooth 360° rotating cards
   useEffect(() => {
-    if (phase !== 'dealing') return;
+    if (phase !== 'dealing' || players.length === 0) return;
 
-    const totalCardsToDeal = players.length * 7;
+    const totalCardsToDeal = players.length * cardsPerPlayer;
     let dealtIndex = 0;
+    const intervalMs = cardsPerPlayer <= 3 ? 370 : cardsPerPlayer <= 5 ? 400 : 430;
 
     const dealInterval = setInterval(() => {
       if (dealtIndex >= totalCardsToDeal) {
@@ -113,10 +116,10 @@ export const UnoShuffleDealAnimation: React.FC<UnoShuffleDealAnimationProps> = (
       triggerHaptic('light');
 
       dealtIndex++;
-    }, 480); // 480ms gives a deliberate, authentic dealer rhythm where each card is clearly appreciated
+    }, intervalMs);
 
     return () => clearInterval(dealInterval);
-  }, [phase, players, soundEnabled]);
+  }, [phase, players, soundEnabled, cardsPerPlayer]);
 
   // 3. Lead Card Flip Phase: Dramatic presentation of the opening discard card
   useEffect(() => {
@@ -200,7 +203,7 @@ export const UnoShuffleDealAnimation: React.FC<UnoShuffleDealAnimationProps> = (
                 </span>
               </div>
               <span className="text-[10px] font-mono text-cyan-300 font-bold mt-0.5">
-                {count > 0 ? `${count} / 7 cards` : 'Ready'}
+                {count > 0 ? `${count} / ${cardsPerPlayer} cards` : 'Ready'}
               </span>
             </div>
           );
@@ -516,7 +519,7 @@ export const UnoShuffleDealAnimation: React.FC<UnoShuffleDealAnimationProps> = (
                 ? 'Cascade rainbow bridge waterfall...'
                 : 'Deck squared flush on table!'
               : phase === 'dealing'
-              ? `Dealing round: ${playerDealtCounts[players[0]?.id] || 0} / 7 cards in your hand`
+              ? `Dealing round: ${playerDealtCounts[players[0]?.id] || 0} / ${cardsPerPlayer} cards in your hand`
               : 'Opening discard placed! Round starting...'}
           </span>
         </div>

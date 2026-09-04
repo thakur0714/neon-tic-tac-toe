@@ -58,6 +58,8 @@ export type LudoRoomMessage =
   | { type: 'ASSIGN'; seat: LudoColor; rejoinToken: string }
   | { type: 'START' }
   | { type: 'STATE'; snapshot: LudoSnapshot }
+  | { type: 'ROLL_START'; color: LudoColor }
+  | { type: 'ROLL_RESULT'; color: LudoColor; roll: number; consecutiveSixes: number }
   | { type: 'INTENT'; action: 'roll' | 'move'; seat: LudoColor; tokenId?: number }
   | { type: 'REMATCH_LOBBY' }
   | { type: 'HOST_LEFT' }
@@ -267,6 +269,12 @@ class LudoRoomManager {
   pushState(snapshot: LudoSnapshot) {
     if (this.role !== 'host') return;
     for (const conn of this.connByPeer.values()) this.safeSend(conn, { type: 'STATE', snapshot });
+  }
+
+  /** Host: broadcast any real-time event (like roll start / roll result) to all clients. */
+  broadcastAction(msg: LudoRoomMessage) {
+    if (this.role !== 'host') return;
+    for (const conn of this.connByPeer.values()) this.safeSend(conn, msg);
   }
 
   // ── client ─────────────────────────────────────────────────────

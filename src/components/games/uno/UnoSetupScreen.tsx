@@ -16,6 +16,7 @@ import {
   Eye,
   EyeOff,
   User,
+  Layers,
 } from 'lucide-react';
 import { playClickSound } from '../../../utils/audio';
 import { UnoDifficulty, UnoPlayType } from '../../../types/uno';
@@ -27,6 +28,7 @@ export interface UnoStartConfig {
   difficulty: UnoDifficulty;
   playerNames: string[];
   privacyVeil: boolean;
+  initialCardCount: number;
 }
 
 interface UnoSetupScreenProps {
@@ -84,6 +86,7 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
   const [difficulty, setDifficulty] = useState<UnoDifficulty>('pro');
   const [showRules, setShowRules] = useState<boolean>(false);
   const [privacyVeil, setPrivacyVeil] = useState<boolean>(true);
+  const [initialCardCount, setInitialCardCount] = useState<number>(7);
   const [playerNames, setPlayerNames] = useState<string[]>([
     'Player 1',
     'Player 2',
@@ -112,6 +115,7 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
       difficulty,
       playerNames: playerNames.slice(0, playerCount).map((n, i) => n.trim() || `Player ${i + 1}`),
       privacyVeil,
+      initialCardCount,
     });
   };
 
@@ -253,6 +257,50 @@ export const UnoSetupScreen: React.FC<UnoSetupScreenProps> = ({
                 >
                   <div className="text-xs font-black font-orbitron">{item.label}</div>
                   <div className="text-[9px] text-slate-400 mt-0.5">{item.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 2B. Starting Cards Selection (3, 5, or 7 Cards) */}
+        {playType !== 'online' && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-orbitron font-bold text-slate-300 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                <span>STARTING CARDS</span>
+              </span>
+              <span className="text-[10px] text-cyan-300 font-mono font-bold">
+                {initialCardCount === 3
+                  ? '⚡ 3 Cards (Blitz)'
+                  : initialCardCount === 5
+                  ? '🔥 5 Cards (Speed)'
+                  : '🏆 7 Cards (Classic)'}
+              </span>
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { count: 3, label: '3 CARDS', tag: '⚡ Blitz', desc: 'Fast & thrilling' },
+                { count: 5, label: '5 CARDS', tag: '🔥 Speed', desc: 'Fast-paced duel' },
+                { count: 7, label: '7 CARDS', tag: '🏆 Classic', desc: 'Standard UNO' },
+              ].map((item) => (
+                <button
+                  key={item.count}
+                  type="button"
+                  onClick={() => {
+                    playClickSound(soundEnabled);
+                    setInitialCardCount(item.count);
+                  }}
+                  className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
+                    initialCardCount === item.count
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.3)]'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <div className="text-xs font-black font-orbitron">{item.label}</div>
+                  <div className="text-[9px] text-cyan-400 font-bold mt-0.5">{item.tag}</div>
+                  <div className="text-[8px] text-slate-400 mt-0.5">{item.desc}</div>
                 </button>
               ))}
             </div>
